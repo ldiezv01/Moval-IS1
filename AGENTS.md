@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - Root: `README.md`, `AGENTS.md` (this file).
 - Source: `code/` (each module owns its build/test config).
-- Documentation: `docs/` (user guides, diagrams, ADRs).
+- Documentation: `docs/` (guides, diagrams, ADRs, SRS: `docs/Plantilla_IEEE830-1998_Moval.pdf`).
 - Tests: keep near source (e.g., `code/<module>/tests` or `code/<module>/__tests__`).
 
 ## Build, Test, and Development Commands
@@ -24,9 +24,16 @@
 - Coverage: aim >= 80% per module unless documented otherwise.
 - Run: from module folder, use `npm test` or `pytest -q`. Add failing test first when fixing bugs.
 
+## Requirements & Traceability
+- Use SRS requirement IDs (e.g., REQ-012) from `docs/Plantilla_IEEE830-1998_Moval.pdf`.
+- Commits: include relevant IDs. Example: "feat: discount calc (REQ-012)".
+- Tests: tag/name with IDs (e.g., `test_req_012_*`, `@pytest.mark.req_012`).
+- Traceability: maintain `docs/traceability.csv` mapping `REQ-ID,module path,test name`.
+
 ## Commit & Pull Request Guidelines
 - Commits: imperative mood, concise scope. Example: "feat: add auth middleware".
 - Reference issues: `Fixes #123` or `Refs #123` when applicable.
+- Reference SRS where relevant (IDs/sections, e.g., REQ-012; §3.2.1).
 - PRs: include summary, motivation, testing steps, screenshots (UI), and linked issue. Keep PRs focused and small.
 
 ## Security & Configuration Tips
