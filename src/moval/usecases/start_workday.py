@@ -9,7 +9,7 @@ class StartWorkday:
         if actor["role"] != "COURIER":
             raise PermissionError("Only couriers can start a workday")
 
-        if self.workday_repo.has_active_workday(actor["id"]):
+        if self.workday_repo.get_active_workday(actor["id"]):
             raise ConflictError(
                 "There is already an active workday for this courier"
             )
