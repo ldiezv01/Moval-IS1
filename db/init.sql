@@ -14,9 +14,9 @@ CREATE TABLE Usuario (
     nombre TEXT NOT NULL,
     apellidos TEXT NOT NULL,
     email TEXT UNIQUE,
-    password TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
     telefono TEXT,
-    rol TEXT NOT NULL, -- Valores: 'ADMIN', 'CLIENTE', 'MENSAJERO'
+    rol TEXT NOT NULL, -- Valores: 'ADMIN', 'CUSTOMER', 'COURIER'
     activo BOOLEAN DEFAULT 1,
     fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -90,10 +90,10 @@ CREATE TABLE Valoracion (
 
 -- Insertar datos de prueba (Seed Data)
 -- Password '1234' para todos
-INSERT INTO Usuario (dni, nombre, apellidos, email, password, rol) VALUES 
+INSERT INTO Usuario (dni, nombre, apellidos, email, password_hash, rol) VALUES 
 ('admin', 'Administrador', 'Jefe', 'admin@moval.com', '1234', 'ADMIN'),
-('1111A', 'Juan', 'Mensajero', 'juan@moval.com', '1234', 'MENSAJERO'),
-('2222B', 'Ana', 'Cliente', 'ana@moval.com', '1234', 'CLIENTE');
+('1111A', 'Juan', 'Mensajero', 'juan@moval.com', '1234', 'COURIER'),
+('2222B', 'Ana', 'Cliente', 'ana@moval.com', '1234', 'CUSTOMER');
 
 INSERT INTO Paquete (codigo_seguimiento, descripcion, peso, direccion_origen, direccion_destino, id_cliente, estado, fecha_estimada_entrega) VALUES
 ('PKG-001', 'Caja Libros', 5.5, 'Calle A, 1', 'Calle B, 2', 3, 'REGISTRADO', DATETIME('now', '+1 day')),
