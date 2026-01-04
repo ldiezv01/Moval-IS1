@@ -30,6 +30,8 @@ from moval.usecases.change_user_role import ChangeUserRole
 from moval.usecases.list_ratings import ListRatings
 from moval.usecases.update_user_data import UpdateUserData
 from moval.usecases.get_courier_profile import GetCourierProfile
+from moval.services.route_service import RouteService
+from moval.usecases.generate_delivery_route import GenerateDeliveryRoute
 
 from moval.app.views import LoginView, RegisterView, AdminView, CourierView, CustomerView
 
@@ -51,6 +53,7 @@ class MovalApp(ctk.CTk):
         self.rating_repo = RatingRepo()
         self.clock = Clock()
         self.hasher = PasswordHasher()
+        self.route_service = RouteService()
 
         # 2. Casos de Uso
         self.uc_login = Login(self.user_repo, self.session_repo, self.hasher)
@@ -67,10 +70,11 @@ class MovalApp(ctk.CTk):
         self.uc_get_wd = GetActiveWorkday(self.workday_repo)
         self.uc_deliver = DeliverShipment(self.shipment_repo, self.clock)
         self.uc_incident = ReportIncident(self.shipment_repo, self.incident_repo, self.clock)
-        self.uc_details = GetShipmentDetails(self.shipment_repo)
-        self.uc_eta = CalculateETA(self.shipment_repo, self.clock)
+        self.uc_details = GetShipmentDetails(self.shipment_repo, self.incident_repo, self.user_repo)
+        self.uc_eta = CalculateETA(self.shipment_repo, self.route_service, self.clock)
         self.uc_rate = RateDelivery(self.shipment_repo, self.rating_repo)
         self.uc_courier_profile = GetCourierProfile(self.courier_repo, self.rating_repo, self.shipment_repo)
+        self.uc_route = GenerateDeliveryRoute(self.shipment_repo, self.route_service)
 
         # 3. Estado
         self.current_user = None
@@ -164,6 +168,13 @@ class MovalApp(ctk.CTk):
         try: return self.uc_list_ratings.execute(self.current_user)
         except: return []
 
+    def get_all_couriers_report(self):
+        try:
+            if self.current_user['role'] != 'ADMIN': return []
+            return self.courier_repo.list_all_with_workday_info()
+        except:
+            return []
+
     def assign_shipments(self, sids, cid):
         try: self.uc_assign.execute(self.current_user, sids, cid)
         except Exception as e: messagebox.showerror("Error", str(e))
@@ -204,6 +215,34 @@ class MovalApp(ctk.CTk):
     def report_incident(self, sid, desc):
         try: self.uc_incident.execute(self.current_user, sid, desc)
         except Exception as e: messagebox.showerror("Error", str(e))
+
+    def generate_my_route(self):
+        try:
+            # Assumes current_user is Courier
+            result = self.uc_route.execute(self.current_user['id'])
+            
+            path = os.path.realpath(result['map_path'])
+            print(f"DEBUG: Ruta del mapa generada: {path}")
+            if os.path.exists(path):
+                print("DEBUG: El archivo existe.")
+            else:
+                print("DEBUG: EL ARCHIVO NO EXISTE.")
+
+            msg = f"Ruta generada con éxito.\n\nTiempo: {result['total_time_minutes']} min\nDistancia: {result['total_distance_km']} km\n\n¿Abrir mapa ahora?"
+            if messagebox.askyesno("Ruta Optimizada", msg):
+                if sys.platform == "win32":
+                    # Forzar apertura con explorer
+                    import subprocess
+                    subprocess.Popen(['explorer', path], shell=True)
+                else:
+                    import webbrowser
+                    from urllib.request import pathname2url
+                    webbrowser.open('file:' + pathname2url(path))
+            return result
+        except Exception as e:
+            print(f"ERROR: {e}")
+            messagebox.showerror("Error Generando Ruta", str(e))
+            return None
 
     # Customer
     def get_shipment_details(self, sid):

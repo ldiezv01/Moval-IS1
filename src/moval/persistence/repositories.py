@@ -126,10 +126,14 @@ class ShipmentRepo(BaseSQLiteRepo):
                 )
 
     def list_all(self, filters: dict | None = None) -> List[dict]:
-        query = "SELECT * FROM Paquete"
+        query = """
+            SELECT p.*, u.nombre || ' ' || u.apellidos as cliente_nombre 
+            FROM Paquete p
+            JOIN Usuario u ON p.id_cliente = u.id
+        """
         params = []
         if filters:
-            conditions = [f"{k} = ?" for k in filters.keys()]
+            conditions = [f"p.{k} = ?" for k in filters.keys()]
             query += " WHERE " + " AND ".join(conditions)
             params = list(filters.values())
         with self._get_connection() as conn:
@@ -185,6 +189,29 @@ class CourierRepo(BaseSQLiteRepo):
             )
             courier["status"] = "AVAILABLE" if jornada_cursor.fetchone() else "UNAVAILABLE"
             return courier
+
+    def list_all_with_workday_info(self) -> List[dict]:
+        with self._get_connection() as conn:
+            query = """
+                SELECT 
+                    u.id, u.nombre, u.apellidos, u.email,
+                    j_act.fecha_inicio as fecha_entrada,
+                    j_last.fecha_fin as ultima_salida,
+                    (SELECT AVG(puntuacion) FROM Valoracion v 
+                     JOIN Paquete p ON v.id_paquete = p.id 
+                     WHERE p.id_mensajero = u.id) as media
+                FROM Usuario u
+                LEFT JOIN Jornada j_act ON u.id = j_act.id_mensajero AND j_act.estado = 'ACTIVA'
+                LEFT JOIN (
+                    SELECT id_mensajero, MAX(fecha_fin) as fecha_fin 
+                    FROM Jornada 
+                    WHERE estado = 'FINALIZADA' 
+                    GROUP BY id_mensajero
+                ) j_last ON u.id = j_last.id_mensajero
+                WHERE u.rol = 'COURIER'
+            """
+            cursor = conn.execute(query)
+            return [dict(row) for row in cursor.fetchall()]
 
 
 class RatingRepo(BaseSQLiteRepo):
@@ -252,6 +279,15 @@ class IncidentRepo(BaseSQLiteRepo):
                 "INSERT INTO Incidencia (id_paquete, id_usuario, titulo, descripcion, tipo) VALUES (?, ?, ?, ?, ?)",
                 (shipment_id, reported_id, "Incidencia", description, "GENERIC")
             )
+
+    def get_latest_by_shipment(self, shipment_id: int) -> dict | None:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM Incidencia WHERE id_paquete = ? ORDER BY fecha_reporte DESC LIMIT 1",
+                (shipment_id,)
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
 class HelpRepo:
     def load_help_content(self) -> str:

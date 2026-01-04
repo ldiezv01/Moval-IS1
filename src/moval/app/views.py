@@ -192,10 +192,12 @@ class AdminView(BaseView):
         
         self.tab_shipments = self.tabview.add("Envíos")
         self.tab_users = self.tabview.add("Usuarios")
+        self.tab_couriers = self.tabview.add("Repartidores")
         self.tab_ratings = self.tabview.add("Valoraciones")
 
         self.setup_shipments()
         self.setup_users()
+        self.setup_couriers()
         self.setup_ratings()
 
     def setup_shipments(self):
@@ -209,10 +211,46 @@ class AdminView(BaseView):
         
         ctk.CTkButton(ctrl, text="Asignar", width=100, command=self.assign).pack(side="left", padx=5)
         ctk.CTkButton(ctrl, text="Desasignar", width=100, fg_color="#f59e0b", hover_color="#d97706", command=self.unassign).pack(side="left", padx=5)
+        ctk.CTkButton(ctrl, text="Ver Detalles", width=100, fg_color="#3b82f6", command=self.show_details).pack(side="left", padx=5)
         ctk.CTkButton(ctrl, text="Actualizar", width=100, fg_color="#64748b", command=self.refresh_data).pack(side="right", padx=5)
 
         # Tabla (Treeview)
-        self.tree_ship = self.create_tree(self.tab_shipments, ["ID", "Código", "Origen", "Destino", "Estado", "Repartidor"])
+        self.tree_ship = self.create_tree(self.tab_shipments, ["ID", "Código", "Origen", "Destino", "Estado", "Repartidor", "Fecha Entrega"])
+
+    def show_details(self):
+        selection = self.tree_ship.selection()
+        if not selection: return
+        
+        sid = int(self.tree_ship.item(selection[0])['values'][0])
+        det = self.controller.get_shipment_details(sid)
+        eta = self.controller.calculate_eta(sid)
+        
+        msg = f"--- DETALLES DEL PEDIDO ---\n\n"
+        msg += f"Código: {det.get('codigo_seguimiento')}\n"
+        msg += f"Descripción: {det.get('descripcion')}\n"
+        msg += f"Estado: {det.get('estado')}\n"
+        msg += f"ETA: {eta.get('texto_mostrar', 'N/A')}\n\n"
+        
+        msg += f"--- CLIENTE (DESTINATARIO) ---\n"
+        msg += f"Nombre: {det.get('cliente_nombre', 'N/A')}\n"
+        msg += f"Email: {det.get('cliente_email', 'N/A')}\n"
+        msg += f"Destino: {det.get('direccion_destino')}\n\n"
+        
+        if det.get("estado") == "INCIDENCIA" or det.get("ultima_incidencia"):
+            msg += f"--- MOTIVO INCIDENCIA ---\n"
+            msg += f"Descripción: {det.get('ultima_incidencia', 'Sin descripción')}\n"
+            if det.get("fecha_incidencia"):
+                msg += f"Fecha: {det.get('fecha_incidencia')}\n"
+        
+        messagebox.showinfo(f"Pedido #{sid}", msg)
+
+    def setup_couriers(self):
+        f = ctk.CTkFrame(self.tab_couriers, fg_color="transparent")
+        f.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        ctk.CTkLabel(f, text="Seguimiento de Repartidores", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(0, 10))
+        
+        self.tree_couriers = self.create_tree(f, ["Nombre", "Estado", "Entrada (Hoy)", "Última Salida", "Media"])
 
     def setup_users(self):
         layout = ctk.CTkFrame(self.tab_users, fg_color="transparent")
@@ -265,13 +303,35 @@ class AdminView(BaseView):
         shipments = self.controller.get_all_shipments()
         self.tree_ship.delete(*self.tree_ship.get_children())
         for s in shipments:
-            self.tree_ship.insert("", "end", values=(s['id'], s['codigo_seguimiento'], s['direccion_origen'], s['direccion_destino'], s['estado'], s.get('id_mensajero') or ''))
+            self.tree_ship.insert("", "end", values=(
+                s['id'], 
+                s['codigo_seguimiento'], 
+                s['direccion_origen'], 
+                s['direccion_destino'], 
+                s['estado'], 
+                s.get('id_mensajero') or '',
+                s.get('fecha_entrega_real') or ''
+            ))
 
         # Ratings
         ratings = self.controller.get_all_ratings()
         self.tree_rat.delete(*self.tree_rat.get_children())
         for r in ratings:
             self.tree_rat.insert("", "end", values=(r['fecha'], r['autor'], r['mensajero'] or "", r['puntuacion'], r['comentario']))
+
+        # Reporte Repartidores
+        report = self.controller.get_all_couriers_report()
+        self.tree_couriers.delete(*self.tree_couriers.get_children())
+        for c in report:
+            status = "TRABAJANDO" if c['fecha_entrada'] else "INACTIVO"
+            media = f"{c['media']:.1f}" if c['media'] else "N/A"
+            self.tree_couriers.insert("", "end", values=(
+                f"{c['nombre']} {c['apellidos']}",
+                status,
+                c['fecha_entrada'] or "---",
+                c['ultima_salida'] or "---",
+                media
+            ))
 
     def assign(self):
         selection = self.tree_ship.selection()
@@ -321,18 +381,19 @@ class CourierView(BaseView):
         self.btn_toggle_wd = ctk.CTkButton(status_card, text="Iniciar/Fin", command=self.toggle_wd)
         self.btn_toggle_wd.pack(side="right", padx=20)
 
-        self.tree = self.create_tree(self, ["ID", "Destino", "Estado"])
+        self.tree = self.create_tree(self, ["ID", "Destinatario", "Destino", "Estado"])
         
         act_f = ctk.CTkFrame(self, fg_color="transparent")
         act_f.pack(fill="x", padx=20, pady=10)
         ctk.CTkButton(act_f, text="Entregado", fg_color="#10b981", command=self.deliver).pack(side="left", padx=5)
         ctk.CTkButton(act_f, text="Incidencia", fg_color="#f59e0b", command=self.incident).pack(side="left", padx=5)
+        ctk.CTkButton(act_f, text="Generar Ruta", fg_color="#3b82f6", command=self.generate_route).pack(side="left", padx=5)
         ctk.CTkButton(act_f, text="Actualizar", fg_color="#64748b", command=self.refresh_data).pack(side="right")
 
     def create_tree(self, parent, cols):
         f = ctk.CTkFrame(parent); f.pack(fill="both", expand=True, padx=20)
         t = ttk.Treeview(f, columns=cols, show='headings'); t.pack(side="left", fill="both", expand=True)
-        for c in cols: t.heading(c, text=c); t.column(c, width=100)
+        for c in cols: t.heading(c, text=c); t.column(c, width=120)
         return t
 
     def refresh_data(self):
@@ -348,13 +409,21 @@ class CourierView(BaseView):
         self.tree.delete(*self.tree.get_children())
         for s in shipments:
             if s['estado'] != 'ENTREGADO':
-                self.tree.insert("", "end", values=(s['id'], s['direccion_destino'], s['estado']))
+                # Buscamos el destinatario (cliente) para mostrar el nombre
+                # Como get_my_shipments usa ListShipments, vamos a necesitar que el repositorio 
+                # o el caso de uso nos de el nombre. 
+                # Por ahora, para ser rápidos, mostramos el ID o buscamos el nombre si el objeto lo trae.
+                destinatario = s.get('cliente_nombre') or f"Cliente #{s['id_cliente']}"
+                self.tree.insert("", "end", values=(s['id'], destinatario, s['direccion_destino'], s['estado']))
 
     def toggle_wd(self):
         wd = self.controller.get_active_workday()
         if wd: self.controller.end_workday()
         else: self.controller.start_workday()
         self.refresh_data()
+        
+    def generate_route(self):
+        self.controller.generate_my_route()
 
     def deliver(self):
         sel = self.tree.selection()
@@ -408,7 +477,11 @@ class CustomerView(BaseView):
         if not sid: return
         det = self.controller.get_shipment_details(sid)
         eta = self.controller.calculate_eta(sid)
-        messagebox.showinfo("Detalles", f"Origen: {det['direccion_origen']}\nDestino: {det['direccion_destino']}\nETA: {eta['eta_minutos']} min")
+        
+        # Usar el texto formateado si existe, o fallback al antiguo
+        eta_str = eta.get("texto_mostrar", f"{eta.get('eta_minutos', '?')} min")
+        
+        messagebox.showinfo("Detalles", f"Origen: {det['direccion_origen']}\nDestino: {det['direccion_destino']}\nETA: {eta_str}")
 
     def rate(self):
         sid = self.get_sel()

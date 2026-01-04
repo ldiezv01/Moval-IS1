@@ -30,13 +30,13 @@ class GetCourierProfile:
             if not self.shipment_repo:
                 raise ValidationError("Repositorio de envíos no disponible")
 
-            # Verificar que el cliente ha tenido relación con este mensajero
-            delivered = self.shipment_repo.list_by_customer(
+            # Verificar que el cliente ha tenido relación con este mensajero (asignado o entregado)
+            shipments = self.shipment_repo.list_by_customer(
                 customer_id=actor["id"],
-                filters={"id_mensajero": courier_id, "estado": ShipmentStatus.DELIVERED.value}
+                filters={"id_mensajero": courier_id}
             )
-            if not delivered:
-                raise PermissionError("Solo puede ver perfiles de mensajeros que le hayan entregado paquetes")
+            if not shipments:
+                raise PermissionError("No tiene envíos asociados a este mensajero.")
 
         total_deliveries = 0
         if self.shipment_repo:

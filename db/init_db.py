@@ -86,14 +86,23 @@ def init_db():
     # 6. PAQUETES DE PRUEBA
     paquetes = []
     
+    # Helper para coordenadas en León (aprox 42.60, -5.56)
+    def random_coords():
+        # Variación pequeña para que caigan en la ciudad
+        lat = 42.60 + random.uniform(-0.02, 0.02)
+        lon = -5.56 + random.uniform(-0.03, 0.03)
+        return lat, lon
+
     # A) Pendientes (REGISTRADO) - Para que el Admin asigne
     for i in range(1, 11):
+        lat, lon = random_coords()
         paquetes.append((
             f'PKG-N{i:03d}', 
             f'Paquete Nuevo {i}', 
             random.uniform(1.0, 10.0), 
             'Almacén Central',
-            f'Calle {random.choice(["Alcalá", "Gran Vía", "Mayor", "Princesa"])}, {random.randint(1, 100)}',
+            f'Calle {random.choice(["Ordoño II", "Ancha", "Padre Isla", "Burgo Nuevo", "República Argentina", "Gran Vía de San Marcos"])}, {random.randint(1, 100)}',
+            lat, lon, # Coordenadas
             random.choice(customers), # Cliente aleatorio
             None, # Sin mensajero
             'REGISTRADO',
@@ -102,29 +111,34 @@ def init_db():
 
     # B) Asignados (ASIGNADO) - Para que Juan/Laura entreguen
     for i in range(11, 16):
+        lat, lon = random_coords()
         paquetes.append((
             f'PKG-A{i:03d}', 
             f'Paquete Asignado {i}', 
             random.uniform(0.5, 5.0), 
             'Almacén Central',
-            f'Paseo Castellana, {random.randint(100, 200)}',
+            f'Avenida {random.choice(["Roma", "Facultad de Veterinaria", "Independencia", "Reyes Leoneses"])}, {random.randint(1, 150)}',
+            lat, lon,
             random.choice(customers),
             2, # Asignado a Juan (ID 2)
             'ASIGNADO',
             None
         ))
     # Uno para Laura
-    paquetes.append((f'PKG-A099', 'Urgente Laura', 1.2, 'Almacén', 'Calle Pez 2', 5, 3, 'ASIGNADO', None))
+    lat_l, lon_l = random_coords()
+    paquetes.append((f'PKG-A099', 'Urgente Laura', 1.2, 'Almacén', 'Calle Lancia, 2', lat_l, lon_l, 5, 3, 'ASIGNADO', None))
 
     # C) Entregados (ENTREGADO) - Para que los clientes valoren
     for i in range(20, 26):
         delivery_time = now - timedelta(hours=random.randint(1, 48))
+        lat, lon = random_coords()
         paquetes.append((
             f'PKG-E{i:03d}', 
             f'Libros Texto {i}', 
             3.5, 
             'Librería Central',
-            f'Av. América, {random.randint(1, 50)}',
+            f'Calle {random.choice(["Mariano Andrés", "Serranos", "Damasco"])}, {random.randint(1, 50)}',
+            lat, lon,
             5, # Todos para ANA (ID 5) para probar fácil su panel
             2, # Entregado por Juan
             'ENTREGADO',
@@ -132,8 +146,8 @@ def init_db():
         ))
 
     cursor.executemany("""
-        INSERT INTO Paquete (codigo_seguimiento, descripcion, peso, direccion_origen, direccion_destino, id_cliente, id_mensajero, estado, fecha_entrega_real) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO Paquete (codigo_seguimiento, descripcion, peso, direccion_origen, direccion_destino, latitud, longitud, id_cliente, id_mensajero, estado, fecha_entrega_real) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, paquetes)
     print(f" > {len(paquetes)} Paquetes generados (Pendientes, Asignados y Entregados).")
 

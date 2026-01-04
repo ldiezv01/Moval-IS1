@@ -29,6 +29,8 @@ CREATE TABLE Paquete (
     peso REAL,
     direccion_origen TEXT NOT NULL,
     direccion_destino TEXT NOT NULL,
+    latitud REAL, -- Coordenada de destino
+    longitud REAL, -- Coordenada de destino
     estado TEXT DEFAULT 'REGISTRADO', -- 'REGISTRADO', 'ASIGNADO', 'EN_REPARTO', 'ENTREGADO', 'DEVUELTO', 'INCIDENCIA'
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_estimada_entrega DATETIME,
@@ -95,9 +97,11 @@ INSERT INTO Usuario (dni, nombre, apellidos, email, password_hash, rol) VALUES
 ('1111A', 'Juan', 'Mensajero', 'juan@moval.com', '1234', 'COURIER'),
 ('2222B', 'Ana', 'Cliente', 'ana@moval.com', '1234', 'CUSTOMER');
 
-INSERT INTO Paquete (codigo_seguimiento, descripcion, peso, direccion_origen, direccion_destino, id_cliente, estado, fecha_estimada_entrega) VALUES
-('PKG-001', 'Caja Libros', 5.5, 'Calle A, 1', 'Calle B, 2', 3, 'REGISTRADO', DATETIME('now', '+1 day')),
-('PKG-002', 'Monitor', 2.0, 'Oficina Central', 'Casa Ana', 3, 'REGISTRADO', DATETIME('now', '+2 days'));
+-- Paquetes con coordenadas en León para probar la ruta
+INSERT INTO Paquete (codigo_seguimiento, descripcion, peso, direccion_origen, direccion_destino, latitud, longitud, id_cliente, estado, fecha_estimada_entrega) VALUES
+('PKG-001', 'Caja Libros', 5.5, 'Almacén Central', 'Catedral de León', 42.5990, -5.5666, 3, 'REGISTRADO', DATETIME('now', '+1 day')),
+('PKG-002', 'Monitor', 2.0, 'Almacén Central', 'MUSAC', 42.6063, -5.5862, 3, 'REGISTRADO', DATETIME('now', '+2 days')),
+('PKG-003', 'Teclado', 0.8, 'Almacén Central', 'Estación Tren', 42.5960, -5.5830, 3, 'REGISTRADO', DATETIME('now', '+2 days'));
 
 -- Ejemplo de una jornada activa para Juan
 INSERT INTO Jornada (id_mensajero, fecha_inicio, estado) VALUES

@@ -2,29 +2,16 @@ from moval.usecases.errors import ValidationError, PermissionError, NotFoundErro
 
 class GetShipmentDetails:
     """
-    Obtiene los detalles de un paquete específico, aplicando reglas de privacidad
-    según el rol del solicitante.
+    Obtiene los detalles de un paquete específico, incluyendo información de incidencias
+    y cliente para el administrador.
     """
 
-    def __init__(self, shipment_repo):
+    def __init__(self, shipment_repo, incident_repo=None, user_repo=None):
         self.shipment_repo = shipment_repo
+        self.incident_repo = incident_repo
+        self.user_repo = user_repo
 
     def execute(self, actor: dict, shipment_id: int) -> dict:
-        """
-        Recupera un paquete por ID.
-
-        Args:
-            actor (dict): Usuario solicitante.
-            shipment_id (int): ID del paquete.
-
-        Returns:
-            dict: Datos del paquete.
-
-        Raises:
-            ValidationError: Datos incompletos.
-            NotFoundError: Paquete no existe.
-            PermissionError: Acceso denegado al paquete.
-        """
         if not actor or "id" not in actor or "role" not in actor:
             raise ValidationError("Datos de usuario requeridos")
 
@@ -38,20 +25,26 @@ class GetShipmentDetails:
         if not shipment:
             raise NotFoundError("Paquete no encontrado")
 
+        # Lógica de permisos básica
+        if role == "COURIER" and shipment.get("id_mensajero") != actor_id:
+            raise PermissionError("Este paquete no está asignado a su ruta")
+        if role == "CUSTOMER" and shipment.get("id_cliente") != actor_id:
+            raise PermissionError("Este paquete no le pertenece")
+
+        # Para ADMIN (o si el solicitante tiene permiso), enriquecemos con más datos
         if role == "ADMIN":
-            return shipment
+            # 1. Obtener datos del cliente
+            if self.user_repo and shipment.get("id_cliente"):
+                customer = self.user_repo.get(shipment["id_cliente"])
+                if customer:
+                    shipment["cliente_nombre"] = f"{customer['nombre']} {customer['apellidos']}"
+                    shipment["cliente_email"] = customer['email']
 
-        elif role == "COURIER":
-            # Verificar asignación (campo BD: id_mensajero)
-            if shipment.get("id_mensajero") != actor_id:
-                raise PermissionError("Este paquete no está asignado a su ruta")
-            return shipment
+            # 2. Obtener última incidencia si existe
+            if self.incident_repo:
+                incident = self.incident_repo.get_latest_by_shipment(shipment_id)
+                if incident:
+                    shipment["ultima_incidencia"] = incident["descripcion"]
+                    shipment["fecha_incidencia"] = incident["fecha_reporte"]
 
-        elif role == "CUSTOMER":
-            # Verificar propiedad (campo BD: id_cliente)
-            if shipment.get("id_cliente") != actor_id:
-                raise PermissionError("Este paquete no le pertenece")
-            return shipment
-
-        else:
-            raise PermissionError("Rol no autorizado para ver detalles")
+        return shipment

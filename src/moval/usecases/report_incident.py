@@ -65,10 +65,14 @@ class ReportIncident:
             description=description.strip()
         )
 
-        # 2. Actualizar estado del paquete a INCIDENCIA
-        self.shipment_repo.set_status(
+        # 2. Actualizar estado del paquete a INCIDENCIA y DESASIGNAR
+        # Al desasignar, el paquete se le "quita" al mensajero
+        self.shipment_repo.update(
             shipment_id=shipment_id,
-            status=ShipmentStatus.INCIDENT
+            fields={
+                "estado": ShipmentStatus.INCIDENT.value,
+                "id_mensajero": None
+            }
         )
 
         return {
