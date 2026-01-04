@@ -26,9 +26,11 @@ from moval.usecases.report_incident import ReportIncident
 from moval.usecases.get_shipment_details import GetShipmentDetails
 from moval.usecases.calculate_eta import CalculateETA
 from moval.usecases.rate_delivery import RateDelivery
+from moval.usecases.register_user import RegisterUser
+from moval.usecases.change_user_role import ChangeUserRole
 
 # Import de Vistas
-from moval.app.views import LoginView, AdminView, CourierView, CustomerView
+from moval.app.views import LoginView, AdminView, CourierView, CustomerView, RegisterView
 
 class MovalApp(tk.Tk):
     def __init__(self):
@@ -36,6 +38,20 @@ class MovalApp(tk.Tk):
         self.title("Moval Logistics System")
         self.geometry("900x600")
         
+        # 0. Autoinicialización de Base de Datos (Modo Demo para evaluación)
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        db_file = os.path.join(project_root, 'db', 'moval.db')
+        
+        if not os.path.exists(db_file):
+            print("Base de datos no detectada. Generando escenario de demostración...")
+            try:
+                if project_root not in sys.path:
+                    sys.path.append(project_root)
+                from db.init_db import init_db
+                init_db()
+            except Exception as e:
+                print(f"Error inicializando datos de prueba: {e}")
+
         # 1. Inicialización de Capa de Datos (Clean Architecture)
         self.user_repo = UserRepo()
         self.session_repo = SessionRepo()
@@ -50,6 +66,7 @@ class MovalApp(tk.Tk):
 
         # 2. Inicialización de Casos de Uso
         self.uc_login = Login(self.user_repo, self.session_repo, self.hasher)
+        self.uc_register = RegisterUser(self.user_repo, self.hasher)
         
         # Admin
         self.uc_list_pending = ListPendingShipments(self.shipment_repo)
@@ -57,6 +74,7 @@ class MovalApp(tk.Tk):
         self.uc_assign = AssignShipments(self.shipment_repo, self.courier_repo)
         self.uc_unassign = UnassignShipment(self.shipment_repo)
         self.uc_list_all = ListShipments(self.shipment_repo) # Para que admin vea todo
+        self.uc_change_role = ChangeUserRole(self.user_repo)
         
         # Courier
         self.uc_list_my_shipments = ListShipments(self.shipment_repo)
@@ -79,7 +97,7 @@ class MovalApp(tk.Tk):
         self.container.pack(side="top", fill="both", expand=True)
         self.frames = {}
         
-        for F in (LoginView, AdminView, CourierView, CustomerView):
+        for F in (LoginView, AdminView, CourierView, CustomerView, RegisterView):
             frame = F(self.container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
@@ -118,6 +136,14 @@ class MovalApp(tk.Tk):
         except Exception as e:
             messagebox.showerror("Login Fallido", str(e))
 
+    def register(self, data):
+        try:
+            self.uc_register.execute(data)
+            messagebox.showinfo("Éxito", "Cuenta creada correctamente. Ya puede iniciar sesión.")
+            self.show_frame(LoginView)
+        except Exception as e:
+            messagebox.showerror("Error de Registro", str(e))
+
     # --- ADMIN ---
     def get_available_couriers(self):
         try:
@@ -145,6 +171,22 @@ class MovalApp(tk.Tk):
     def unassign_shipment(self, shipment_id):
         try:
             self.uc_unassign.execute(self.current_user, shipment_id)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def get_user_by_email(self, email):
+        try:
+            # Usamos el repo directamente para la búsqueda simple o creamos un UC si fuera necesario
+            user = self.user_repo.get_by_email(email)
+            return user
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+            return None
+
+    def change_user_role(self, email, new_role):
+        try:
+            self.uc_change_role.execute(self.current_user, email, new_role)
+            messagebox.showinfo("Éxito", f"El rol del usuario {email} ha sido actualizado a {new_role}.")
         except Exception as e:
             messagebox.showerror("Error", str(e))
 

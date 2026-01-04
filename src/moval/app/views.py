@@ -31,13 +31,48 @@ class LoginView(BaseFrame):
         self.pass_entry.pack(pady=5)
         self.pass_entry.insert(0, "1234") # Default para pruebas
 
-        # Botón
-        tk.Button(self, text="Entrar", command=self.perform_login, bg="#4CAF50", fg="white", width=15).pack(pady=20)
+        # Botones
+        tk.Button(self, text="Entrar", command=self.perform_login, bg="#4CAF50", fg="white", width=15).pack(pady=10)
+        
+        tk.Label(self, text="¿No tienes cuenta?").pack(pady=(10, 0))
+        tk.Button(self, text="Registrarse", command=lambda: controller.show_frame(RegisterView), fg="blue", cursor="hand2", bd=0).pack()
 
     def perform_login(self):
         email = self.email_entry.get()
         password = self.pass_entry.get()
         self.controller.login(email, password)
+
+# ==========================================
+# VISTA: REGISTRO
+# ==========================================
+class RegisterView(BaseFrame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, controller)
+        
+        tk.Label(self, text="CREAR CUENTA", font=("Arial", 18, "bold")).pack(pady=10)
+
+        # Formulario
+        fields = [("DNI:", "dni"), ("Nombre:", "nombre"), ("Apellidos:", "apellidos"), ("Email:", "email")]
+        self.entries = {}
+
+        for label_text, key in fields:
+            tk.Label(self, text=label_text).pack(anchor="w")
+            entry = tk.Entry(self, width=30)
+            entry.pack(pady=5)
+            self.entries[key] = entry
+
+        tk.Label(self, text="Contraseña:").pack(anchor="w")
+        self.pass_entry = tk.Entry(self, width=30, show="*")
+        self.pass_entry.pack(pady=5)
+
+        # Botones
+        tk.Button(self, text="Registrarse", command=self.perform_register, bg="#2196F3", fg="white", width=15).pack(pady=20)
+        tk.Button(self, text="Volver al Login", command=lambda: controller.show_frame(LoginView), bd=0, fg="grey").pack()
+
+    def perform_register(self):
+        data = {k: v.get() for k, v in self.entries.items()}
+        data["password"] = self.pass_entry.get()
+        self.controller.register(data)
 
 # ==========================================
 # VISTA B: ADMINISTRADOR
@@ -52,80 +87,130 @@ class AdminView(BaseFrame):
         tk.Label(header, text="Panel de Administrador", font=("Arial", 16, "bold")).pack(side="left")
         tk.Button(header, text="Cerrar Sesión", command=controller.logout).pack(side="right")
 
+        # Tabs
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill="both", expand=True)
+
+        # TAB 1: GESTIÓN DE ENVÍOS
+        self.tab_shipments = tk.Frame(self.notebook, padx=10, pady=10)
+        self.notebook.add(self.tab_shipments, text="Gestión de Envíos")
+        self.setup_shipments_tab()
+
+        # TAB 2: GESTIÓN DE USUARIOS
+        self.tab_users = tk.Frame(self.notebook, padx=10, pady=10)
+        self.notebook.add(self.tab_users, text="Gestión de Usuarios")
+        self.setup_users_tab()
+
+    def setup_shipments_tab(self):
         # --- Zona de Gestión ---
-        controls = tk.LabelFrame(self, text="Gestión de Asignaciones", padx=10, pady=10)
+        controls = tk.LabelFrame(self.tab_shipments, text="Asignación de Paquetes", padx=10, pady=10)
         controls.pack(fill="x", pady=10)
 
-        # Selector de Mensajero
-        tk.Label(controls, text="Seleccionar Mensajero:").pack(side="left", padx=5)
+        tk.Label(controls, text="Mensajero:").pack(side="left", padx=5)
         self.courier_combo = ttk.Combobox(controls, state="readonly", width=25)
         self.courier_combo.pack(side="left", padx=5)
         
-        # Botones de Acción
-        tk.Button(controls, text="Asignar Seleccionados", command=self.assign_shipments, bg="#2196F3", fg="white").pack(side="left", padx=5)
+        tk.Button(controls, text="Asignar Selección", command=self.assign_shipments, bg="#2196F3", fg="white").pack(side="left", padx=5)
         tk.Button(controls, text="Desasignar", command=self.unassign_shipment, bg="#FF9800", fg="white").pack(side="left", padx=5)
-        tk.Button(controls, text="Actualizar Lista", command=self.refresh_data).pack(side="left", padx=5)
+        tk.Button(controls, text="Refrescar", command=self.refresh_data).pack(side="right", padx=5)
 
-        # --- Tabla de Envíos Pendientes ---
-        tk.Label(self, text="Envíos Pendientes / Sin Asignar", font=("Arial", 10, "bold")).pack(anchor="w")
-        
+        # --- Tabla ---
         cols = ("ID", "Código", "Origen", "Destino", "Estado", "Mensajero")
-        self.tree = ttk.Treeview(self, columns=cols, show="headings", selectmode="extended")
-        
+        self.tree = ttk.Treeview(self.tab_shipments, columns=cols, show="headings", selectmode="extended")
         for col in cols:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=100)
-        
         self.tree.pack(fill="both", expand=True)
+
+    def setup_users_tab(self):
+        # Mapeo de roles para la interfaz
+        self.role_display = {
+            "CUSTOMER": "Cliente",
+            "COURIER": "Repartidor",
+            "ADMIN": "Administrador"
+        }
+        self.role_internal = {v: k for k, v in self.role_display.items()}
+
+        # Buscador
+        search_frame = tk.LabelFrame(self.tab_users, text="Buscar Usuario", padx=10, pady=10)
+        search_frame.pack(fill="x", pady=10)
+
+        tk.Label(search_frame, text="Email:").pack(side="left", padx=5)
+        self.user_search_entry = tk.Entry(search_frame, width=30)
+        self.user_search_entry.pack(side="left", padx=5)
+        tk.Button(search_frame, text="Buscar", command=self.search_user).pack(side="left", padx=5)
+
+        # Resultado de búsqueda
+        self.user_info_frame = tk.LabelFrame(self.tab_users, text="Datos del Usuario", padx=10, pady=10)
+        self.user_info_frame.pack(fill="x", pady=10)
+        self.user_info_label = tk.Label(self.user_info_frame, text="Busque un usuario para ver sus detalles.", justify="left")
+        self.user_info_label.pack(pady=5)
+
+        # Cambio de Rol
+        role_frame = tk.Frame(self.user_info_frame)
+        role_frame.pack(fill="x", pady=5)
+        
+        tk.Label(role_frame, text="Nuevo Rol:").pack(side="left", padx=5)
+        self.role_combo = ttk.Combobox(role_frame, values=list(self.role_display.values()), state="readonly")
+        self.role_combo.pack(side="left", padx=5)
+        self.btn_update_role = tk.Button(role_frame, text="Actualizar Rol", command=self.update_role, bg="#4CAF50", fg="white", state="disabled")
+        self.btn_update_role.pack(side="left", padx=5)
+
+    def search_user(self):
+        email = self.user_search_entry.get()
+        user = self.controller.get_user_by_email(email)
+        if user:
+            self.current_searched_user = user
+            rol_esp = self.role_display.get(user['role'], user['role'])
+            info = f"ID: {user['id']}\nNombre: {user['nombre']} {user['apellidos']}\nEmail: {user['email']}\nRol Actual: {rol_esp}"
+            self.user_info_label.config(text=info)
+            self.role_combo.set(rol_esp)
+            self.btn_update_role.config(state="normal")
+        else:
+            self.user_info_label.config(text="No se encontró ningún usuario.")
+            self.btn_update_role.config(state="disabled")
+
+    def update_role(self):
+        rol_seleccionado = self.role_combo.get()
+        new_role = self.role_internal[rol_seleccionado]
+        email = self.current_searched_user['email']
+        self.controller.change_user_role(email, new_role)
+        self.search_user() # Refrescar info
 
     def refresh_data(self):
         # 1. Cargar Mensajeros Disponibles
         couriers = self.controller.get_available_couriers()
-        # Guardamos referencia ID -> Nombre
         self.courier_map = {f"{c['nombre']} {c['apellidos']} (ID: {c['id']})": c['id'] for c in couriers}
         self.courier_combo['values'] = list(self.courier_map.keys())
         if self.courier_map: self.courier_combo.current(0)
 
-        # 2. Cargar Paquetes (Todos o Pendientes)
+        # 2. Cargar Paquetes
         shipments = self.controller.get_all_shipments()
-        
-        # Limpiar tabla
         for item in self.tree.get_children():
             self.tree.delete(item)
-            
-        # Llenar tabla
         for s in shipments:
-            # Filtramos visualmente o mostramos todo. Mostremos todo para que pueda desasignar.
             self.tree.insert("", "end", values=(s['id'], s['codigo_seguimiento'], s['direccion_origen'], s['direccion_destino'], s['estado'], s.get('id_mensajero', '')))
 
     def assign_shipments(self):
         selection = self.tree.selection()
         if not selection:
-            messagebox.showwarning("Aviso", "Seleccione al menos un paquete de la lista.")
+            messagebox.showwarning("Aviso", "Seleccione al menos un paquete.")
             return
-            
         courier_str = self.courier_combo.get()
         if not courier_str:
-            messagebox.showwarning("Aviso", "Seleccione un mensajero del desplegable.")
+            messagebox.showwarning("Aviso", "Seleccione un mensajero.")
             return
-
         courier_id = self.courier_map[courier_str]
-        shipment_ids = [self.tree.item(item)['values'][0] for item in selection] # ID es col 0
-
+        shipment_ids = [self.tree.item(item)['values'][0] for item in selection]
         self.controller.assign_shipments(shipment_ids, courier_id)
         self.refresh_data()
 
     def unassign_shipment(self):
         selection = self.tree.selection()
-        if not selection:
-            messagebox.showwarning("Aviso", "Seleccione un paquete.")
-            return
-        
-        # Unassign de uno en uno o lote (el backend lo soporta de uno en uno por ahora)
+        if not selection: return
         for item in selection:
             sid = self.tree.item(item)['values'][0]
             self.controller.unassign_shipment(sid)
-        
         self.refresh_data()
 
 
