@@ -28,6 +28,7 @@ from moval.usecases.calculate_eta import CalculateETA
 from moval.usecases.rate_delivery import RateDelivery
 from moval.usecases.register_user import RegisterUser
 from moval.usecases.change_user_role import ChangeUserRole
+from moval.usecases.list_ratings import ListRatings
 
 # Import de Vistas
 from moval.app.views import LoginView, AdminView, CourierView, CustomerView, RegisterView
@@ -75,6 +76,7 @@ class MovalApp(tk.Tk):
         self.uc_unassign = UnassignShipment(self.shipment_repo)
         self.uc_list_all = ListShipments(self.shipment_repo) # Para que admin vea todo
         self.uc_change_role = ChangeUserRole(self.user_repo)
+        self.uc_list_ratings = ListRatings(self.rating_repo)
         
         # Courier
         self.uc_list_my_shipments = ListShipments(self.shipment_repo)
@@ -122,6 +124,10 @@ class MovalApp(tk.Tk):
     def login(self, email, password):
         try:
             user = self.uc_login.execute(email, password)
+            # Adaptador: Login devuelve user_id, pero los Casos de Uso esperan 'id'
+            if 'user_id' in user:
+                user['id'] = user['user_id']
+            
             self.current_user = user
             role = user['role']
             
@@ -153,10 +159,9 @@ class MovalApp(tk.Tk):
             return []
 
     def get_all_shipments(self):
-        # Admin ve todo, o podríamos usar list_pending. AdminView pide "Pendientes"
+        # Admin ve todo para poder gestionar (asignar/desasignar)
         try:
-            # Usamos list_pending para la tabla principal
-            return self.uc_list_pending.execute(self.current_user)
+            return self.uc_list_all.execute(self.current_user)
         except Exception as e:
             print(e)
             return []
@@ -190,11 +195,19 @@ class MovalApp(tk.Tk):
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
+    def get_all_ratings(self):
+        try:
+            return self.uc_list_ratings.execute(self.current_user)
+        except Exception as e:
+            print(f"Error listando ratings: {e}")
+            return []
+
     # --- COURIER ---
     def get_active_workday(self):
         try:
-            return self.uc_get_workday.execute(self.current_user['user_id'])
-        except Exception:
+            return self.uc_get_workday.execute(self.current_user)
+        except Exception as e:
+            print(f"DEBUG: Error obteniendo jornada: {e}")
             return None
 
     def start_workday(self):

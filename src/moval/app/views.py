@@ -101,8 +101,13 @@ class AdminView(BaseFrame):
         self.notebook.add(self.tab_users, text="Gestión de Usuarios")
         self.setup_users_tab()
 
+        # TAB 3: VALORACIONES
+        self.tab_ratings = tk.Frame(self.notebook, padx=10, pady=10)
+        self.notebook.add(self.tab_ratings, text="Valoraciones")
+        self.setup_ratings_tab()
+
     def setup_shipments_tab(self):
-        # --- Zona de Gestión ---
+        # ... (código existente) ...
         controls = tk.LabelFrame(self.tab_shipments, text="Asignación de Paquetes", padx=10, pady=10)
         controls.pack(fill="x", pady=10)
 
@@ -115,6 +120,8 @@ class AdminView(BaseFrame):
         tk.Button(controls, text="Refrescar", command=self.refresh_data).pack(side="right", padx=5)
 
         # --- Tabla ---
+        tk.Label(self.tab_shipments, text="Listado Global de Envíos", font=("Arial", 10, "bold")).pack(anchor="w")
+        
         cols = ("ID", "Código", "Origen", "Destino", "Estado", "Mensajero")
         self.tree = ttk.Treeview(self.tab_shipments, columns=cols, show="headings", selectmode="extended")
         for col in cols:
@@ -122,7 +129,31 @@ class AdminView(BaseFrame):
             self.tree.column(col, width=100)
         self.tree.pack(fill="both", expand=True)
 
+    def setup_ratings_tab(self):
+        tk.Button(self.tab_ratings, text="Actualizar", command=self.refresh_data).pack(anchor="e", pady=5)
+        
+        cols = ("Fecha", "Cliente", "Mensajero", "Puntuación", "Comentario")
+        self.tree_ratings = ttk.Treeview(self.tab_ratings, columns=cols, show="headings")
+        
+        self.tree_ratings.heading("Fecha", text="Fecha")
+        self.tree_ratings.column("Fecha", width=120)
+        
+        self.tree_ratings.heading("Cliente", text="Cliente")
+        self.tree_ratings.column("Cliente", width=150)
+        
+        self.tree_ratings.heading("Mensajero", text="Mensajero")
+        self.tree_ratings.column("Mensajero", width=150)
+        
+        self.tree_ratings.heading("Puntuación", text="Puntuación")
+        self.tree_ratings.column("Puntuación", width=80, anchor="center")
+        
+        self.tree_ratings.heading("Comentario", text="Comentario")
+        self.tree_ratings.column("Comentario", width=300)
+        
+        self.tree_ratings.pack(fill="both", expand=True)
+
     def setup_users_tab(self):
+        # ... (código existente setup_users_tab) ...
         # Mapeo de roles para la interfaz
         self.role_display = {
             "CUSTOMER": "Cliente",
@@ -157,6 +188,7 @@ class AdminView(BaseFrame):
         self.btn_update_role.pack(side="left", padx=5)
 
     def search_user(self):
+        # ... (código existente search_user) ...
         email = self.user_search_entry.get()
         user = self.controller.get_user_by_email(email)
         if user:
@@ -171,6 +203,7 @@ class AdminView(BaseFrame):
             self.btn_update_role.config(state="disabled")
 
     def update_role(self):
+        # ... (código existente update_role) ...
         rol_seleccionado = self.role_combo.get()
         new_role = self.role_internal[rol_seleccionado]
         email = self.current_searched_user['email']
@@ -190,6 +223,13 @@ class AdminView(BaseFrame):
             self.tree.delete(item)
         for s in shipments:
             self.tree.insert("", "end", values=(s['id'], s['codigo_seguimiento'], s['direccion_origen'], s['direccion_destino'], s['estado'], s.get('id_mensajero', '')))
+
+        # 3. Cargar Valoraciones (Nuevo)
+        ratings = self.controller.get_all_ratings()
+        for item in self.tree_ratings.get_children():
+            self.tree_ratings.delete(item)
+        for r in ratings:
+            self.tree_ratings.insert("", "end", values=(r['fecha'], r['autor'], r['mensajero'] or "N/A", f"{r['puntuacion']}/5", r['comentario']))
 
     def assign_shipments(self):
         selection = self.tree.selection()

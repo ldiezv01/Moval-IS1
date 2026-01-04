@@ -174,7 +174,17 @@ class CourierRepo(BaseSQLiteRepo):
         with self._get_connection() as conn:
             cursor = conn.execute("SELECT * FROM Usuario WHERE id = ? AND rol = 'COURIER'", (courier_id,))
             row = cursor.fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            
+            courier = dict(row)
+            # Verificar si tiene jornada activa para determinar status
+            jornada_cursor = conn.execute(
+                "SELECT id FROM Jornada WHERE id_mensajero = ? AND estado = 'ACTIVA'", 
+                (courier_id,)
+            )
+            courier["status"] = "AVAILABLE" if jornada_cursor.fetchone() else "UNAVAILABLE"
+            return courier
 
 
 class RatingRepo(BaseSQLiteRepo):
@@ -215,6 +225,24 @@ class RatingRepo(BaseSQLiteRepo):
 
     def create_workday_rating(self, workday_id: int, customer_id: int, courier_id: int, score: int, comment: str | None, created_at=None) -> dict:
         return {"id": 0, "status": "not_implemented_in_db"}
+
+    def list_all(self) -> List[dict]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT 
+                    v.id, 
+                    v.puntuacion, 
+                    v.comentario, 
+                    v.fecha,
+                    u_autor.nombre || ' ' || u_autor.apellidos as autor,
+                    u_mensajero.nombre || ' ' || u_mensajero.apellidos as mensajero
+                FROM Valoracion v
+                JOIN Usuario u_autor ON v.id_autor = u_autor.id
+                JOIN Paquete p ON v.id_paquete = p.id
+                LEFT JOIN Usuario u_mensajero ON p.id_mensajero = u_mensajero.id
+                ORDER BY v.fecha DESC
+            """)
+            return [dict(row) for row in cursor.fetchall()]
 
 
 class IncidentRepo(BaseSQLiteRepo):

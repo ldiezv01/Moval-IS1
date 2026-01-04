@@ -35,7 +35,7 @@ class AssignShipments:
             raise ValidationError("Debe proporcionar el ID del mensajero")
 
         # Verificar existencia y disponibilidad del mensajero
-        courier = self.courier_repo.get_by_id(courier_id)
+        courier = self.courier_repo.get(courier_id)
         if not courier:
             raise NotFoundError(f"Mensajero {courier_id} no encontrado")
 
@@ -54,13 +54,15 @@ class AssignShipments:
 
             shipments.append(shipment)
 
-        assigned_shipments = []
-        for shipment in shipments:
-            updated = self.shipment_repo.set_status(
-                shipment_id=shipment["id"],
-                status=ShipmentStatus.ASSIGNED,
-                courier_id=courier_id
-            )
-            assigned_shipments.append(updated)
+        # Extraer IDs validados
+        valid_ids = [s["id"] for s in shipments]
 
-        return {"assigned_shipments": assigned_shipments}
+        # Realizar la asignación en lote usando el método específico del repositorio
+        self.shipment_repo.assign(shipment_id=valid_ids, courier_id=courier_id)
+
+        # Actualizar los objetos en memoria para el retorno
+        for shipment in shipments:
+            shipment["estado"] = ShipmentStatus.ASSIGNED.value
+            shipment["id_mensajero"] = courier_id
+
+        return {"assigned_shipments": shipments}

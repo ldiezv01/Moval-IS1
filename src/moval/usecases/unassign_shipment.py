@@ -30,11 +30,11 @@ class UnassignShipment:
         if shipment["estado"] != ShipmentStatus.ASSIGNED.value:
             raise ConflictError("El paquete no está asignado a ningún mensajero")
 
-        # Devolver a estado REGISTRADO (PENDING)
-        updated_shipment = self.shipment_repo.set_status(
-            shipment_id=shipment_id,
-            status=ShipmentStatus.PENDING,
-            courier_id=None
-        )
+        if shipment["estado"] not in [ShipmentStatus.ASSIGNED.value, ShipmentStatus.EN_ROUTE.value]:
+            raise ConflictError(f"El paquete {shipment_id} no está actualmente asignado")
 
-        return {"unassigned_shipment": updated_shipment}
+        # Usar el método específico del repositorio para desasignar
+        self.shipment_repo.unassign(shipment_id)
+
+        # Retornar estado actualizado manualmente para la respuesta
+        return {"id": shipment_id, "estado": ShipmentStatus.PENDING.value, "id_mensajero": None}

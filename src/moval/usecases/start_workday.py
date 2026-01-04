@@ -18,7 +18,7 @@ class StartWorkday:
 
         workday = self.workday_repo.create_workday(
             courier_id=actor["id"],
-            start_time=start_time
+            start_ts=start_time
         )
 
         return workday
