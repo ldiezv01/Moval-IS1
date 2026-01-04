@@ -1,18 +1,18 @@
-import tkinter as tk
-from tkinter import messagebox
+import customtkinter as ctk
 import sys
 import os
+from tkinter import messagebox
 
-# Ajuste de path para que encuentre 'src'
+# Path Fix
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src')))
 
-# Imports de Dominio y Persistencia
+# Lógica
 from moval.persistence.repositories import UserRepo, SessionRepo, ShipmentRepo, CourierRepo, WorkdayRepo, IncidentRepo, RatingRepo
 from moval.security.password_hasher import PasswordHasher
 from moval.services.clock import Clock
 
-# Imports de Casos de Uso
 from moval.usecases.login import Login
+from moval.usecases.register_user import RegisterUser
 from moval.usecases.list_pending_shipments import ListPendingShipments
 from moval.usecases.list_available_couriers import ListAvailableCouriers
 from moval.usecases.assign_shipment import AssignShipments
@@ -26,34 +26,22 @@ from moval.usecases.report_incident import ReportIncident
 from moval.usecases.get_shipment_details import GetShipmentDetails
 from moval.usecases.calculate_eta import CalculateETA
 from moval.usecases.rate_delivery import RateDelivery
-from moval.usecases.register_user import RegisterUser
 from moval.usecases.change_user_role import ChangeUserRole
 from moval.usecases.list_ratings import ListRatings
+from moval.usecases.update_user_data import UpdateUserData
+from moval.usecases.get_courier_profile import GetCourierProfile
 
-# Import de Vistas
-from moval.app.views import LoginView, AdminView, CourierView, CustomerView, RegisterView
+from moval.app.views import LoginView, RegisterView, AdminView, CourierView, CustomerView
 
-class MovalApp(tk.Tk):
+class MovalApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Moval Logistics System")
-        self.geometry("900x600")
+        self.geometry("1100x750")
         
-        # 0. Autoinicialización de Base de Datos (Modo Demo para evaluación)
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-        db_file = os.path.join(project_root, 'db', 'moval.db')
+        self.init_db()
         
-        if not os.path.exists(db_file):
-            print("Base de datos no detectada. Generando escenario de demostración...")
-            try:
-                if project_root not in sys.path:
-                    sys.path.append(project_root)
-                from db.init_db import init_db
-                init_db()
-            except Exception as e:
-                print(f"Error inicializando datos de prueba: {e}")
-
-        # 1. Inicialización de Capa de Datos (Clean Architecture)
+        # 1. Repositorios y Servicios
         self.user_repo = UserRepo()
         self.session_repo = SessionRepo()
         self.shipment_repo = ShipmentRepo()
@@ -61,215 +49,178 @@ class MovalApp(tk.Tk):
         self.workday_repo = WorkdayRepo()
         self.incident_repo = IncidentRepo()
         self.rating_repo = RatingRepo()
-        
         self.clock = Clock()
         self.hasher = PasswordHasher()
 
-        # 2. Inicialización de Casos de Uso
+        # 2. Casos de Uso
         self.uc_login = Login(self.user_repo, self.session_repo, self.hasher)
         self.uc_register = RegisterUser(self.user_repo, self.hasher)
-        
-        # Admin
-        self.uc_list_pending = ListPendingShipments(self.shipment_repo)
+        self.uc_update_profile = UpdateUserData(self.user_repo)
+        self.uc_list_all = ListShipments(self.shipment_repo)
         self.uc_list_couriers = ListAvailableCouriers(self.courier_repo)
         self.uc_assign = AssignShipments(self.shipment_repo, self.courier_repo)
         self.uc_unassign = UnassignShipment(self.shipment_repo)
-        self.uc_list_all = ListShipments(self.shipment_repo) # Para que admin vea todo
         self.uc_change_role = ChangeUserRole(self.user_repo)
         self.uc_list_ratings = ListRatings(self.rating_repo)
-        
-        # Courier
-        self.uc_list_my_shipments = ListShipments(self.shipment_repo)
-        self.uc_start_workday = StartWorkday(self.workday_repo, self.clock)
-        self.uc_end_workday = EndWorkday(self.workday_repo, self.clock)
-        self.uc_get_workday = GetActiveWorkday(self.workday_repo)
+        self.uc_start_wd = StartWorkday(self.workday_repo, self.clock)
+        self.uc_end_wd = EndWorkday(self.workday_repo, self.clock)
+        self.uc_get_wd = GetActiveWorkday(self.workday_repo)
         self.uc_deliver = DeliverShipment(self.shipment_repo, self.clock)
         self.uc_incident = ReportIncident(self.shipment_repo, self.incident_repo, self.clock)
-        
-        # Customer
         self.uc_details = GetShipmentDetails(self.shipment_repo)
         self.uc_eta = CalculateETA(self.shipment_repo, self.clock)
         self.uc_rate = RateDelivery(self.shipment_repo, self.rating_repo)
+        self.uc_courier_profile = GetCourierProfile(self.courier_repo, self.rating_repo, self.shipment_repo)
 
-        # Estado Global
-        self.current_user = None # {id, role, ...}
+        # 3. Estado
+        self.current_user = None
         
-        # 3. Gestión de Vistas
-        self.container = tk.Frame(self)
+        # 4. Contenedor de Vistas
+        self.container = ctk.CTkFrame(self)
         self.container.pack(side="top", fill="both", expand=True)
+        self.container.grid_rowconfigure(0, weight=1)
+        self.container.grid_columnconfigure(0, weight=1)
+
         self.frames = {}
-        
-        for F in (LoginView, AdminView, CourierView, CustomerView, RegisterView):
+        for F in (LoginView, RegisterView, AdminView, CourierView, CustomerView):
             frame = F(self.container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
 
-        self.show_frame(LoginView)
+        self.switch_view("login")
 
-    def show_frame(self, cont):
-        frame = self.frames[cont]
+    def init_db(self):
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        db = os.path.join(root, 'db', 'moval.db')
+        if not os.path.exists(db):
+            if root not in sys.path: sys.path.append(root)
+            from db.init_db import init_db
+            init_db()
+
+    def switch_view(self, name):
+        name_map = {
+            "login": LoginView, "register": RegisterView, 
+            "admin": AdminView, "courier": CourierView, "customer": CustomerView
+        }
+        view_class = name_map[name]
+        frame = self.frames[view_class]
         frame.tkraise()
-        # Si la vista tiene método refresh_data, llamarlo al mostrar
         if hasattr(frame, "refresh_data") and self.current_user:
             frame.refresh_data()
 
-    def logout(self):
-        self.current_user = None
-        self.show_frame(LoginView)
-
-    # ==========================================
-    # MÉTODOS CONTROLADORES (Bridge UI <-> UseCases)
-    # ==========================================
-    
+    # --- ACTIONS ---
     def login(self, email, password):
         try:
             user = self.uc_login.execute(email, password)
-            # Adaptador: Login devuelve user_id, pero los Casos de Uso esperan 'id'
-            if 'user_id' in user:
-                user['id'] = user['user_id']
-            
+            user['id'] = user['user_id']
             self.current_user = user
             role = user['role']
-            
-            if role == 'ADMIN':
-                self.show_frame(AdminView)
-            elif role == 'COURIER':
-                self.show_frame(CourierView)
-            elif role == 'CUSTOMER':
-                self.show_frame(CustomerView)
-            else:
-                messagebox.showerror("Error", f"Rol desconocido: {role}")
-        except Exception as e:
-            messagebox.showerror("Login Fallido", str(e))
+            if role == "ADMIN": self.switch_view("admin")
+            elif role == "COURIER": self.switch_view("courier")
+            elif role == "CUSTOMER": self.switch_view("customer")
+        except Exception as e: messagebox.showerror("Error", str(e))
+
+    def logout(self):
+        self.current_user = None
+        self.switch_view("login")
 
     def register(self, data):
         try:
             self.uc_register.execute(data)
-            messagebox.showinfo("Éxito", "Cuenta creada correctamente. Ya puede iniciar sesión.")
-            self.show_frame(LoginView)
-        except Exception as e:
-            messagebox.showerror("Error de Registro", str(e))
+            messagebox.showinfo("Éxito", "Cuenta creada.")
+            self.switch_view("login")
+        except Exception as e: messagebox.showerror("Error", str(e))
 
-    # --- ADMIN ---
-    def get_available_couriers(self):
+    def update_profile(self, data):
         try:
-            return self.uc_list_couriers.execute(self.current_user)
-        except Exception as e:
-            print(e)
-            return []
-
-    def get_all_shipments(self):
-        # Admin ve todo para poder gestionar (asignar/desasignar)
-        try:
-            return self.uc_list_all.execute(self.current_user)
-        except Exception as e:
-            print(e)
-            return []
-
-    def assign_shipments(self, shipment_ids, courier_id):
-        try:
-            self.uc_assign.execute(self.current_user, shipment_ids, courier_id)
-            messagebox.showinfo("Éxito", "Paquetes asignados correctamente.")
+            # Recargar usuario para asegurar que tenemos sus datos
+            actor = self.current_user
+            updated = self.uc_update_profile.execute(actor, data)
+            # Actualizar sesión local con los nuevos datos
+            self.current_user.update(updated)
+            return True
         except Exception as e:
             messagebox.showerror("Error", str(e))
+            return False
 
-    def unassign_shipment(self, shipment_id):
+    def get_current_user_data(self):
+        """Recupera los datos frescos del usuario actual desde la BD."""
+        if not self.current_user: return {}
         try:
-            self.uc_unassign.execute(self.current_user, shipment_id)
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-    def get_user_by_email(self, email):
-        try:
-            # Usamos el repo directamente para la búsqueda simple o creamos un UC si fuera necesario
-            user = self.user_repo.get_by_email(email)
-            return user
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-            return None
-
-    def change_user_role(self, email, new_role):
-        try:
-            self.uc_change_role.execute(self.current_user, email, new_role)
-            messagebox.showinfo("Éxito", f"El rol del usuario {email} ha sido actualizado a {new_role}.")
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-    def get_all_ratings(self):
-        try:
-            return self.uc_list_ratings.execute(self.current_user)
-        except Exception as e:
-            print(f"Error listando ratings: {e}")
-            return []
-
-    # --- COURIER ---
-    def get_active_workday(self):
-        try:
-            return self.uc_get_workday.execute(self.current_user)
-        except Exception as e:
-            print(f"DEBUG: Error obteniendo jornada: {e}")
-            return None
-
-    def start_workday(self):
-        try:
-            self.uc_start_workday.execute({"id": self.current_user['user_id'], "role": "COURIER"})
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-    def end_workday(self):
-        try:
-            self.uc_end_workday.execute({"id": self.current_user['user_id'], "role": "COURIER"})
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-    def get_my_shipments(self):
-        try:
-            # Reutiliza ListShipments que filtra por rol internamente
-            actor = {"id": self.current_user['user_id'], "role": self.current_user['role']}
-            return self.uc_list_my_shipments.execute(actor)
-        except Exception as e:
-            print(e)
-            return []
-
-    def deliver_shipment(self, shipment_id):
-        try:
-            actor = {"id": self.current_user['user_id'], "role": "COURIER"}
-            self.uc_deliver.execute(actor, shipment_id)
-            messagebox.showinfo("Éxito", "Paquete entregado.")
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-    def report_incident(self, shipment_id, description):
-        try:
-            actor = {"id": self.current_user['user_id'], "role": self.current_user['role']}
-            self.uc_incident.execute(actor, shipment_id, description)
-            messagebox.showinfo("Reportado", "Incidencia registrada.")
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-    # --- CUSTOMER ---
-    def get_shipment_details(self, shipment_id):
-        try:
-            actor = {"id": self.current_user['user_id'], "role": self.current_user['role']}
-            return self.uc_details.execute(actor, shipment_id)
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+            return self.user_repo.get(self.current_user['id']) or {}
+        except:
             return {}
 
-    def calculate_eta(self, shipment_id):
-        try:
-            actor = {"id": self.current_user['user_id'], "role": self.current_user['role']}
-            return self.uc_eta.execute(actor, shipment_id)
-        except Exception as e:
-            return {"eta_minutes": "Desc.", "error": str(e)}
+    # Admin
+    def get_available_couriers(self):
+        try: return self.uc_list_couriers.execute(self.current_user)
+        except: return []
 
-    def rate_delivery(self, shipment_id, score, comment):
-        try:
-            actor = {"id": self.current_user['user_id'], "role": self.current_user['role']}
-            self.uc_rate.execute(actor, shipment_id, score, comment)
-            messagebox.showinfo("Gracias", "Valoración enviada.")
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+    def get_all_shipments(self):
+        try: return self.uc_list_all.execute(self.current_user)
+        except: return []
+
+    def get_all_ratings(self):
+        try: return self.uc_list_ratings.execute(self.current_user)
+        except: return []
+
+    def assign_shipments(self, sids, cid):
+        try: self.uc_assign.execute(self.current_user, sids, cid)
+        except Exception as e: messagebox.showerror("Error", str(e))
+
+    def unassign_shipment(self, sid):
+        try: self.uc_unassign.execute(self.current_user, sid)
+        except Exception as e: messagebox.showerror("Error", str(e))
+
+    def get_user_by_email(self, email):
+        try: return self.user_repo.get_by_email(email)
+        except: return None
+
+    def change_user_role(self, email, role):
+        try: self.uc_change_role.execute(self.current_user, email, role)
+        except Exception as e: messagebox.showerror("Error", str(e))
+
+    # Courier
+    def get_active_workday(self):
+        try: return self.uc_get_wd.execute(self.current_user)
+        except: return None
+
+    def start_workday(self):
+        try: self.uc_start_wd.execute(self.current_user)
+        except Exception as e: messagebox.showerror("Error", str(e))
+
+    def end_workday(self):
+        try: self.uc_end_wd.execute(self.current_user)
+        except Exception as e: messagebox.showerror("Error", str(e))
+
+    def get_my_shipments(self):
+        try: return self.uc_list_all.execute(self.current_user)
+        except: return []
+
+    def deliver_shipment(self, sid):
+        try: self.uc_deliver.execute(self.current_user, sid)
+        except Exception as e: messagebox.showerror("Error", str(e))
+
+    def report_incident(self, sid, desc):
+        try: self.uc_incident.execute(self.current_user, sid, desc)
+        except Exception as e: messagebox.showerror("Error", str(e))
+
+    # Customer
+    def get_shipment_details(self, sid):
+        try: return self.uc_details.execute(self.current_user, sid)
+        except: return {}
+
+    def calculate_eta(self, sid):
+        try: return self.uc_eta.execute(self.current_user, sid)
+        except: return {"eta_minutos": "Error"}
+
+    def rate_delivery(self, sid, score, com):
+        try: self.uc_rate.execute(self.current_user, sid, score, com)
+        except Exception as e: messagebox.showerror("Error", str(e))
+
+    def get_courier_profile(self, cid):
+        try: return self.uc_courier_profile.execute(self.current_user, cid)
+        except: return None
 
 if __name__ == "__main__":
     app = MovalApp()
