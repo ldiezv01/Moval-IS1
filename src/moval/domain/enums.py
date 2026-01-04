@@ -6,10 +6,10 @@ class Role(str, Enum):
     CUSTOMER = "CUSTOMER"
 
 class ShipmentStatus(str, Enum):
-    PENDING = "PENDING"
-    ASSIGNED = "ASSIGNED"
-    EN_ROUTE = "EN_ROUTE"
-    DELIVERED = "DELIVERED"
-    INCIDENT = "INCIDENT"
+    PENDING = "REGISTRADO"
+    ASSIGNED = "ASIGNADO"
+    EN_ROUTE = "EN_REPARTO"
+    DELIVERED = "ENTREGADO"
+    INCIDENT = "INCIDENCIA"
 
     

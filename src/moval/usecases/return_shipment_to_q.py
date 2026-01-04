@@ -1,30 +1,38 @@
 from moval.usecases.errors import ValidationError, PermissionError, NotFoundError, ConflictError
+from moval.domain.enums import ShipmentStatus
 
 class ReturnShipmentToQueue:
+    """
+    Permite a un mensajero devolver un paquete a la cola de pendientes si no puede entregarlo.
+    """
     def __init__(self, shipment_repo, clock=None):
         self.shipment_repo = shipment_repo
         self.clock = clock
 
-    def execute(self,actor: dict,shipment_id: int,reason: str | None = None) -> dict:
+    def execute(self, actor: dict, shipment_id: int, reason: str | None = None) -> dict:
 
         if not actor or "id" not in actor or "role" not in actor:
-            raise ValidationError("Actor data is required")
+            raise ValidationError("Datos de usuario requeridos")
 
         if actor["role"] != "COURIER":
-            raise PermissionError("Only couriers can return shipments to queue")
+            raise PermissionError("Solo los mensajeros pueden devolver paquetes a la cola")
 
         shipment = self.shipment_repo.get(shipment_id)
         if not shipment:
-            raise NotFoundError("Shipment not found")
+            raise NotFoundError("Paquete no encontrado")
 
-        if shipment.get("courier_id") != actor["id"]:
-            raise PermissionError("Shipment not assigned to this courier")
+        # Campo BD: id_mensajero
+        if shipment.get("id_mensajero") != actor["id"]:
+            raise PermissionError("Este paquete no está asignado a usted")
 
-        if shipment.get("status") == "DELIVERED":
-            raise ConflictError("Shipment already delivered")
+        if shipment.get("estado") == ShipmentStatus.DELIVERED.value:
+            raise ConflictError("El paquete ya ha sido entregado y no se puede devolver")
 
-        timestamp = self.clock.now_utc() if self.clock else None
-
-        updated_shipment = self.shipment_repo.set_status(shipment_id=shipment_id,status="PENDING",courier_id=None,return_reason=reason,returned_at=timestamp)
+        # Devolver a estado pendiente y quitar el mensajero asignado
+        updated_shipment = self.shipment_repo.set_status(
+            shipment_id=shipment_id,
+            status=ShipmentStatus.PENDING,
+            courier_id=None
+        )
 
         return updated_shipment

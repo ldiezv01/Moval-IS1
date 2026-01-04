@@ -2,7 +2,7 @@ import sys
 import os
 
 # Configuración de PYTHONPATH local para el script de prueba
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from moval.persistence.repositories import UserRepo, SessionRepo
 from moval.security.password_hasher import PasswordHasher
@@ -12,9 +12,9 @@ def smoke_test():
     print("--- Iniciando Smoke Test ---")
     
     # 1. Inicialización de componentes
-    user_repo = UserRepo("moval.db")
+    user_repo = UserRepo()
     # SessionRepo mockeado según implementación en repositories.py
-    from src.moval.persistence.repositories import SessionRepo
+    from moval.persistence.repositories import SessionRepo
     session_repo = SessionRepo()
     hasher = PasswordHasher()
     

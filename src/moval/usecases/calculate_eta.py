@@ -1,67 +1,76 @@
 from datetime import timedelta
 from moval.usecases.errors import ValidationError, PermissionError, NotFoundError
+from moval.domain.enums import ShipmentStatus
 
 class CalculateETA:
+    """
+    Calcula el Tiempo Estimado de Llegada (ETA) de un paquete.
+    Utiliza heurísticas simples basadas en el peso y el estado actual.
+    """
     def __init__(self, shipment_repo, clock=None):
         self.shipment_repo = shipment_repo
         self.clock = clock
 
     def execute(self, actor: dict, shipment_id: int) -> dict:
         if not actor or "id" not in actor or "role" not in actor:
-            raise ValidationError("Actor data is required")
+            raise ValidationError("Datos de usuario requeridos")
 
         if not shipment_id:
-            raise ValidationError("Shipment ID is required")
+            raise ValidationError("ID del paquete requerido")
 
         shipment = self.shipment_repo.get(shipment_id)
         if not shipment:
-            raise NotFoundError("Shipment not found")
+            raise NotFoundError("Paquete no encontrado")
 
         role = actor["role"]
         actor_id = actor["id"]
 
+        # Verificación de permisos
         if role == "ADMIN":
             pass
         elif role == "COURIER":
-            if shipment.get("courier_id") != actor_id:
-                raise PermissionError("Shipment not assigned to this courier")
-        elif role in ["CUSTOMER", "USER"]:
-            if shipment.get("customer_id") != actor_id:
-                raise PermissionError("Shipment does not belong to this customer")
+            if shipment.get("id_mensajero") != actor_id:
+                raise PermissionError("Este paquete no está asignado a usted")
+        elif role == "CUSTOMER":
+            if shipment.get("id_cliente") != actor_id:
+                raise PermissionError("Este paquete no le pertenece")
         else:
-            raise PermissionError("Invalid role for calculating ETA")
+            raise PermissionError("Rol no autorizado para calcular ETA")
 
         # Caso especial: ya entregado
-        if shipment.get("status") == "DELIVERED":
+        if shipment.get("estado") == ShipmentStatus.DELIVERED.value:
             return {
-                "shipment_id": shipment_id,
-                "status": "DELIVERED",
-                "eta_minutes": 0,
-                "estimated_arrival_ts": shipment.get("delivered_at")
+                "id_paquete": shipment_id,
+                "estado": ShipmentStatus.DELIVERED.value,
+                "eta_minutos": 0,
+                "fecha_estimada": shipment.get("fecha_entrega_real")
             }
 
-        # Cálculo ETA simple basado en prioridad, peso y distancia
-        base_eta = 30  # minutos base
+        # Cálculo de ETA simulado (Regla de negocio simple)
+        # Base: 60 minutos
+        base_eta = 60
 
-        if shipment.get("priority") == "HIGH":
-            base_eta -= 10
+        # Ajuste por peso: +5 minutos por cada kg
+        peso = shipment.get("peso", 0)
+        if peso:
+            base_eta += int(peso * 5)
 
-        weight = shipment.get("weight_kg", 0)
-        base_eta += min(int(weight), 20) // 4
+        # Ajuste por estado
+        estado = shipment.get("estado")
+        if estado == ShipmentStatus.EN_ROUTE.value:
+            # Si ya está en reparto, reducimos a la mitad
+            base_eta = max(15, base_eta // 2)
+        elif estado == ShipmentStatus.PENDING.value:
+            # Si aún no está asignado, sumamos tiempo de gestión
+            base_eta += 120
 
-        distance = shipment.get("distance_km")
-        if distance:
-            base_eta = max(5, int(distance * 2))
-
-        # Timestamp estimado
+        estimated_arrival_ts = None
         if self.clock:
             estimated_arrival_ts = self.clock.now_utc() + timedelta(minutes=base_eta)
-        else:
-            estimated_arrival_ts = None
 
         return {
-            "shipment_id": shipment_id,
-            "status": shipment.get("status"),
-            "eta_minutes": base_eta,
-            "estimated_arrival_ts": estimated_arrival_ts
+            "id_paquete": shipment_id,
+            "estado": estado,
+            "eta_minutos": base_eta,
+            "fecha_estimada": estimated_arrival_ts
         }

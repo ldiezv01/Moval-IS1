@@ -1,9 +1,16 @@
 import sqlite3
 import os
+import sys
+
+# Ajustar path para importar desde src
+# db/init_db.py -> dirname = db -> .. = root
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from src.moval.security.password_hasher import PasswordHasher
 
-DB_PATH = "moval.db"
-SQL_SCRIPT_PATH = "db/init.sql"
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(CURRENT_DIR, "moval.db")
+SQL_SCRIPT_PATH = os.path.join(CURRENT_DIR, "init.sql")
 
 def init_db():
     # 1. Borrar DB anterior si existe para empezar limpio

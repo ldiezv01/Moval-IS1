@@ -1,12 +1,18 @@
 import sqlite3
+import os
 from typing import Optional, List, Union
 from moval.domain.enums import Role, ShipmentStatus
 from datetime import datetime
 
 # Clase base para manejar la conexión, no modifica la interfaz pública de los repos
 class BaseSQLiteRepo:
-    def __init__(self, db_path: str = "moval.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            # src/moval/persistence/repositories.py -> ../../../db/moval.db
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            self.db_path = os.path.join(base_dir, '..', '..', '..', 'db', 'moval.db')
+        else:
+            self.db_path = db_path
 
     def _get_connection(self):
         conn = sqlite3.connect(self.db_path)
@@ -28,8 +34,26 @@ class UserRepo(BaseSQLiteRepo):
                 return dict(row)
             return None
 
+    def get(self, user_id: int):
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT id, dni, nombre, apellidos, email, password_hash, telefono, rol as role, activo as is_active FROM Usuario WHERE id = ?", 
+                (user_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+            return None
+
     def exists_email(self, email: str) -> bool:
         return self.get_by_email(email) is not None
+    
+    def update(self, user_id: int, fields: dict) -> None:
+        if not fields: return
+        query = "UPDATE Usuario SET " + ", ".join([f"{k} = ?" for k in fields.keys()]) + " WHERE id = ?"
+        params = list(fields.values()) + [user_id]
+        with self._get_connection() as conn:
+            conn.execute(query, params)
     
     # Metodo necesario para registrar usuarios
     def create(self, user_data: dict) -> int:
