@@ -34,13 +34,12 @@ class AssignShipments:
         if not courier_id:
             raise ValidationError("Debe proporcionar el ID del mensajero")
 
-        # Verificar existencia y disponibilidad del mensajero
+        # Verificar existencia del mensajero
         courier = self.courier_repo.get(courier_id)
         if not courier:
             raise NotFoundError(f"Mensajero {courier_id} no encontrado")
 
-        if courier["status"] != "AVAILABLE":
-            raise ConflictError(f"El mensajero {courier_id} no está disponible actualmente")
+        # Removed availability check to allow assignment even if courier is not active
 
         shipments = []
         for shipment_id in shipment_ids:

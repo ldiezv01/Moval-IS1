@@ -2,6 +2,7 @@ import sqlite3
 import os
 import sys
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import random
 
 # Ajustar path para importar src
@@ -75,7 +76,7 @@ def init_db():
 
     # 5. JORNADAS (Juan y Laura trabajan hoy)
     # Juan lleva 2 horas, Laura acaba de entrar. Pedro no trabaja.
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Europe/Madrid"))
     jornadas = [
         (2, now - timedelta(hours=2), 'ACTIVA'),
         (3, now - timedelta(minutes=15), 'ACTIVA')

@@ -1,19 +1,20 @@
 from moval.persistence.repositories import ShipmentRepo
 from moval.services.route_service import RouteService
 from moval.domain.enums import ShipmentStatus
+from datetime import datetime
 
 class GenerateDeliveryRoute:
-    def __init__(self, shipment_repo: ShipmentRepo, route_service: RouteService):
+    def __init__(self, shipment_repo: ShipmentRepo, route_service: RouteService, workday_repo):
         self.shipment_repo = shipment_repo
         self.route_service = route_service
+        self.workday_repo = workday_repo
 
     def execute(self, courier_id: int) -> dict:
         """
         Generates an optimized route for all active shipments assigned to the courier.
+        Starts from the last delivered location *within the current workday*, or Warehouse if none.
         """
-        # 1. Get shipments assigned to courier that are not yet delivered
-        # We can filter locally or add a method to repo. 
-        # Using list_by_courier and filtering by status.
+        # 1. Get shipments assigned to courier
         all_shipments = self.shipment_repo.list_by_courier(courier_id)
         
         # Filter for active shipments
@@ -23,52 +24,59 @@ class GenerateDeliveryRoute:
         if not active_shipments:
             raise ValueError("No active shipments found for this courier.")
 
-        # 2. Prepare data for RouteService
-        # RouteService expects objects/dicts with latitud, longitud, direccion
+        # 2. Check for last delivery location IN CURRENT WORKDAY
+        start_coords = None
+        
+        active_workday = self.workday_repo.get_active_workday(courier_id)
+        
+        if active_workday and active_workday.get('fecha_inicio'):
+            wd_start = str(active_workday['fecha_inicio'])
+            
+            # Get delivered shipments 
+            delivered_shipments = [
+                s for s in all_shipments 
+                if s['estado'] == 'ENTREGADO' 
+                and s.get('fecha_entrega_real')
+                # Filter: Delivery time > Workday Start time
+                and str(s.get('fecha_entrega_real')) >= wd_start
+            ]
+            
+            if delivered_shipments:
+                # Sort by delivery date descending to get the latest
+                delivered_shipments.sort(key=lambda x: str(x.get('fecha_entrega_real') or ""), reverse=True)
+                
+                last_delivered = delivered_shipments[0]
+                if last_delivered.get('latitud') and last_delivered.get('longitud'):
+                    start_coords = (float(last_delivered['latitud']), float(last_delivered['longitud']))
+
+        # 3. Prepare data for RouteService
         route_packages = []
         for s in active_shipments:
-            # Ensure coordinates exist
             if s.get('latitud') is None or s.get('longitud') is None:
-                # If any package misses coords, we might skip it or fail.
-                # For now, let's skip and log/print? Or fail.
-                # Given strict route requirements, failing is safer than giving a wrong route.
-                # But to be robust, let's filter them out and warn.
                 continue
             
             route_packages.append({
-                "id": s['id'], # Keep ID to trace back
+                "id": s['id'], 
                 "codigo": s['codigo_seguimiento'],
                 "direccion": s['direccion_destino'],
                 "latitud": s['latitud'],
-                "longitud": s['longitud']
+                "longitud": s['longitud'],
+                "estado": s['estado'],
+                "descripcion": s.get('descripcion', '')
             })
 
         if not route_packages:
             raise ValueError("No shipments with valid coordinates found.")
 
-        # 3. Calculate Route
-        route_result = self.route_service.calculate_optimized_route(route_packages)
+        # 4. Calculate Route
+        route_result = self.route_service.calculate_optimized_route(route_packages, start_coords)
         
-        # 4. (Optional) Enhance result with Shipment details if needed
-        # The result has 'waypoints_order' which are indices in the 'route_packages' list.
-        # We might want to map these back to shipment IDs.
-        
+        # 5. Map back ordered shipments
         ordered_shipments = []
         for idx in route_result['waypoints_order']:
-            # warehouse is 0 and last index, so skipped or handled in service?
-            # Service implementation returns indices of the input list.
-            # wait, service logic:
-            # "original_idx = wp['waypoint_index'] ... pkg_idx = original_idx - 1"
-            # And it returns `optimized_indices` which are the original OSRM indices.
-            # If I want the ordered list of shipments, I need to parse that.
-            
-            # Actually, `RouteService` returns `waypoints_order` list of "original_idx".
-            # 0 is Warehouse.
-            # 1 is package[0], 2 is package[1]...
-            
-            # Let's map it back to provide a clean ordered list of packages.
+            # 0 is Start Point (Warehouse or Last Delivery)
+            # len+1 is End Point (Warehouse)
             if idx == 0 or idx == len(route_packages) + 1:
-                # Warehouse
                 continue
             
             pkg_idx = idx - 1

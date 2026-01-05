@@ -33,7 +33,7 @@ class TestReportIncident(unittest.TestCase):
         }
         
         now = datetime.now()
-        self.mock_clock.now_utc.return_value = now
+        self.mock_clock.now.return_value = now
 
         # Ejecución
         result = self.usecase.execute(actor, shipment_id, "Paquete dañado")
@@ -48,11 +48,16 @@ class TestReportIncident(unittest.TestCase):
             description="Paquete dañado"
         )
         
-        # 2. Se actualizó el estado del paquete
-        self.mock_shipment_repo.set_status.assert_called_with(
+        # 2. Se actualizó el estado del paquete (sin quitar mensajero)
+        self.mock_shipment_repo.update.assert_called_with(
             shipment_id=shipment_id,
-            status=ShipmentStatus.INCIDENT
+            fields={
+                "estado": ShipmentStatus.INCIDENT.value
+            }
         )
+        
+        # 3. Se duplicó el paquete
+        self.mock_shipment_repo.create_copy.assert_called()
 
     def test_customer_report_success(self):
         customer_id = 99
@@ -70,10 +75,13 @@ class TestReportIncident(unittest.TestCase):
         self.usecase.execute(actor, shipment_id, "No estaba en casa")
 
         # Verificar actualización
-        self.mock_shipment_repo.set_status.assert_called_with(
+        self.mock_shipment_repo.update.assert_called_with(
             shipment_id=shipment_id,
-            status=ShipmentStatus.INCIDENT
+            fields={
+                "estado": ShipmentStatus.INCIDENT.value
+            }
         )
+        self.mock_shipment_repo.create_copy.assert_called()
 
     def test_courier_cannot_report_others_shipment(self):
         actor = {"id": 5, "role": "COURIER"}

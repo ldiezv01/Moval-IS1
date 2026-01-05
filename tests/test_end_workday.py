@@ -29,7 +29,7 @@ class TestEndWorkday(unittest.TestCase):
         
         # Hora de fin fija
         end_time = datetime(2026, 1, 4, 18, 0, 0)
-        self.mock_clock.now_utc.return_value = end_time
+        self.mock_clock.now.return_value = end_time
         
         # Resultado esperado del repo
         closed_workday = {**active_workday, "fecha_fin": end_time, "estado": "FINALIZADA"}

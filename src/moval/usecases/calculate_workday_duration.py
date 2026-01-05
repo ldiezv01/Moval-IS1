@@ -51,7 +51,7 @@ class CalculateWorkdayDuration:
         }
 
         if self.clock:
-            result["calculated_at"] = self.clock.now_utc().isoformat()
+            result["calculated_at"] = self.clock.now().isoformat()
 
         return result
 

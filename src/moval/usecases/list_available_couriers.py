@@ -2,8 +2,7 @@ from moval.usecases.errors import ValidationError, PermissionError
 
 class ListAvailableCouriers:
     """
-    Lista los mensajeros que tienen una jornada activa y pueden recibir asignaciones.
-    Exclusivo para administradores.
+    Lista todos los mensajeros (activos o no) para propósitos de administración/asignación.
     """
 
     def __init__(self, courier_repo):
@@ -11,13 +10,13 @@ class ListAvailableCouriers:
 
     def execute(self, actor: dict) -> list[dict]:
         """
-        Recupera la lista de mensajeros disponibles.
+        Recupera la lista de todos los mensajeros.
 
         Args:
             actor (dict): Usuario solicitante (debe ser ADMIN).
 
         Returns:
-            list[dict]: Lista de mensajeros activos.
+            list[dict]: Lista de todos los mensajeros.
         """
         if not actor or "id" not in actor or "role" not in actor:
             raise ValidationError("Datos de usuario requeridos")
@@ -25,4 +24,4 @@ class ListAvailableCouriers:
         if actor.get("role") != "ADMIN":
             raise PermissionError("Solo los administradores pueden listar mensajeros disponibles")
 
-        return self.courier_repo.list_available()
+        return self.courier_repo.list_all_couriers()

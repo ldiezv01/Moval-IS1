@@ -31,7 +31,7 @@ class TestDeliverShipment(unittest.TestCase):
         }
         
         now = datetime.now()
-        self.mock_clock.now_utc.return_value = now
+        self.mock_clock.now.return_value = now
         
         self.mock_shipment_repo.set_status.return_value = {
             "id": shipment_id, 

@@ -52,7 +52,7 @@ class ReportIncident:
             # Pero si no es ninguno de los 3, error.
             raise PermissionError("Rol no autorizado para reportar incidencias")
 
-        timestamp = self.clock.now_utc()
+        timestamp = self.clock.now()
 
         # 1. Crear el registro de incidencia
         # create_incident devuelve None o ID? El repo actual inserta pero no retorna nada explícito en el código visto.
@@ -65,19 +65,25 @@ class ReportIncident:
             description=description.strip()
         )
 
-        # 2. Actualizar estado del paquete a INCIDENCIA y DESASIGNAR
-        # Al desasignar, el paquete se le "quita" al mensajero
+        # 2. Actualizar estado del paquete original a INCIDENCIA y MANTENER al mensajero (para trazabilidad)
+        # O desasignar? El usuario pidió "ese paquete se duplique y se cree el mismo desasigando"
+        # Interpretación: El original se queda en INCIDENCIA (histórico). El nuevo se crea en REGISTRADO (cola).
+        
         self.shipment_repo.update(
             shipment_id=shipment_id,
             fields={
-                "estado": ShipmentStatus.INCIDENT.value,
-                "id_mensajero": None
+                "estado": ShipmentStatus.INCIDENT.value
+                # No desasignamos el original para saber quién tuvo el problema
             }
         )
+
+        # 3. Duplicar el paquete para reintento (Cola de asignación)
+        self.shipment_repo.create_copy(shipment)
 
         return {
             "status": "created",
             "shipment_id": shipment_id,
             "created_at": timestamp,
-            "description": description
+            "description": description,
+            "message": "Incidencia reportada. Se ha generado un nuevo envío para reintento."
         }

@@ -75,7 +75,7 @@ class MovalApp(ctk.CTk):
         self.uc_eta = CalculateETA(self.shipment_repo, self.route_service, self.clock)
         self.uc_rate = RateDelivery(self.shipment_repo, self.rating_repo)
         self.uc_courier_profile = GetCourierProfile(self.courier_repo, self.rating_repo, self.shipment_repo)
-        self.uc_route = GenerateDeliveryRoute(self.shipment_repo, self.route_service)
+        self.uc_route = GenerateDeliveryRoute(self.shipment_repo, self.route_service, self.workday_repo)
 
         # 3. Estado
         self.current_user = None

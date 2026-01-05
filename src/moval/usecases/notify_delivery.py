@@ -39,7 +39,7 @@ class NotifyDelivery:
 
         update_fields = {"delivery_notified": True}
         if self.clock:
-            update_fields["notified_at"] = self.clock.now_utc()
+            update_fields["notified_at"] = self.clock.now()
 
         self.shipment_repo.update(shipment_id, update_fields)
 

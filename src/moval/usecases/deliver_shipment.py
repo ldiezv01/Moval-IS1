@@ -45,7 +45,7 @@ class DeliverShipment:
         if shipment["estado"] == ShipmentStatus.DELIVERED.value:
             raise ConflictError("El paquete ya consta como entregado")
 
-        timestamp = self.clock.now_utc()
+        timestamp = self.clock.now()
 
         updated_shipment = self.shipment_repo.set_status(
             shipment_id=shipment_id,

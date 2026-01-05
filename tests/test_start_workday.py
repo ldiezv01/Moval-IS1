@@ -30,7 +30,7 @@ class TestStartWorkday(unittest.TestCase):
         
         # El reloj devuelve una fecha fija
         fixed_time = datetime(2026, 1, 4, 10, 0, 0)
-        self.mock_clock.now_utc.return_value = fixed_time
+        self.mock_clock.now.return_value = fixed_time
         
         # El repo debe simular la creación devolviendo un dict con los datos
         expected_workday = {"id": 1, "id_mensajero": courier_id, "fecha_inicio": fixed_time}
@@ -46,7 +46,7 @@ class TestStartWorkday(unittest.TestCase):
         self.mock_repo.get_active_workday.assert_called_with(courier_id)
         self.mock_repo.create_workday.assert_called_with(
             courier_id=courier_id,
-            start_time=fixed_time
+            start_ts=fixed_time
         )
 
     def test_only_courier_can_start_workday(self):

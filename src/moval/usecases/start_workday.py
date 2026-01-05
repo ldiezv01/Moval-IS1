@@ -14,7 +14,7 @@ class StartWorkday:
                 "There is already an active workday for this courier"
             )
 
-        start_time = self.clock.now_utc()
+        start_time = self.clock.now()
 
         workday = self.workday_repo.create_workday(
             courier_id=actor["id"],

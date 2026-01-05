@@ -16,7 +16,7 @@ class EndWorkday:
         if not active_workday:
             raise ConflictError("There is no active workday for this courier")
 
-        end_time = self.clock.now_utc()
+        end_time = self.clock.now()
 
         workday = self.workday_repo.close_workday(
             workday_id=active_workday["id"],

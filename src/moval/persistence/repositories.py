@@ -125,6 +125,29 @@ class ShipmentRepo(BaseSQLiteRepo):
                     (status.value, shipment_id)
                 )
 
+    def create_copy(self, original_shipment: dict) -> int:
+        with self._get_connection() as conn:
+            new_code = f"{original_shipment['codigo_seguimiento']}-R"
+            cursor = conn.execute(
+                """
+                INSERT INTO Paquete (
+                    codigo_seguimiento, descripcion, peso, direccion_origen, direccion_destino, 
+                    latitud, longitud, id_cliente, id_mensajero, estado, fecha_entrega_real
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'REGISTRADO', NULL)
+                """,
+                (
+                    new_code,
+                    original_shipment['descripcion'],
+                    original_shipment['peso'],
+                    original_shipment['direccion_origen'],
+                    original_shipment['direccion_destino'],
+                    original_shipment['latitud'],
+                    original_shipment['longitud'],
+                    original_shipment['id_cliente']
+                )
+            )
+            return cursor.lastrowid
+
     def list_all(self, filters: dict | None = None) -> List[dict]:
         query = """
             SELECT p.*, u.nombre || ' ' || u.apellidos as cliente_nombre 
@@ -165,6 +188,11 @@ class CourierRepo(BaseSQLiteRepo):
             """)
             return [dict(row) for row in cursor.fetchall()]
 
+    def list_all_couriers(self) -> List[dict]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM Usuario WHERE rol = 'COURIER'")
+            return [dict(row) for row in cursor.fetchall()]
+
     def can_take_more(self, courier_id: int, limit: int) -> bool:
         with self._get_connection() as conn:
             cursor = conn.execute(
@@ -195,19 +223,18 @@ class CourierRepo(BaseSQLiteRepo):
             query = """
                 SELECT 
                     u.id, u.nombre, u.apellidos, u.email,
-                    j_act.fecha_inicio as fecha_entrada,
-                    j_last.fecha_fin as ultima_salida,
+                    j.fecha_inicio,
+                    j.fecha_fin,
+                    j.estado as estado_jornada,
                     (SELECT AVG(puntuacion) FROM Valoracion v 
                      JOIN Paquete p ON v.id_paquete = p.id 
                      WHERE p.id_mensajero = u.id) as media
                 FROM Usuario u
-                LEFT JOIN Jornada j_act ON u.id = j_act.id_mensajero AND j_act.estado = 'ACTIVA'
                 LEFT JOIN (
-                    SELECT id_mensajero, MAX(fecha_fin) as fecha_fin 
-                    FROM Jornada 
-                    WHERE estado = 'FINALIZADA' 
-                    GROUP BY id_mensajero
-                ) j_last ON u.id = j_last.id_mensajero
+                    SELECT id, id_mensajero, fecha_inicio, fecha_fin, estado
+                    FROM Jornada j1
+                    WHERE id = (SELECT MAX(id) FROM Jornada j2 WHERE j2.id_mensajero = j1.id_mensajero)
+                ) j ON u.id = j.id_mensajero
                 WHERE u.rol = 'COURIER'
             """
             cursor = conn.execute(query)

@@ -115,7 +115,7 @@ class CalculateETA:
 
             if found:
                 eta_min = int(accumulated_seconds / 60)
-                arrival_time = self.clock.now_utc() + timedelta(minutes=eta_min)
+                arrival_time = self.clock.now() + timedelta(minutes=eta_min)
                 return {
                     "eta_minutos": eta_min,
                     "fecha_estimada": arrival_time,
