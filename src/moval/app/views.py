@@ -69,7 +69,7 @@ class BaseView(ctk.CTkFrame):
     # -------------------------
     def open_profile(self):
         """Abrir diálogo de perfil. Llama a ProfileDialog con el controller."""
-        ProfileDialog(self.controller)
+        ProfileDialog(self,self.controller)
 
     def get_help_text(self) -> str:
         """Texto de ayuda por defecto; las vistas pueden sobrescribirlo."""
@@ -97,8 +97,8 @@ class BaseView(ctk.CTkFrame):
 # DIALOGO: PERFIL
 # ==========================================
 class ProfileDialog(ctk.CTkToplevel):
-    def __init__(self, controller):
-        super().__init__()
+    def __init__(self, parent_view: BaseView, controller):
+        super().__init__(parent_view)
         self.controller = controller
         self.title("Ajustes de Perfil")
         self.geometry("450x550")
