@@ -132,12 +132,17 @@ class RouteService:
             map_path = os.path.join(output_dir, map_filename)
             m.save(map_path)
 
+            # Convert [lon, lat] to [lat, lon] for tkintermapview
+            raw_coords = geometry.get('coordinates', [])
+            path_coords = [(c[1], c[0]) for c in raw_coords]
+
             return {
                 "total_time_minutes": int(total_duration_sec / 60),
                 "total_distance_km": round(total_distance_meters / 1000, 2),
                 "map_path": map_path,
                 "waypoints_order": optimized_indices,
-                "legs": trip.get("legs", [])
+                "legs": trip.get("legs", []),
+                "geometry_coordinates": path_coords
             }
 
         except Exception as e:

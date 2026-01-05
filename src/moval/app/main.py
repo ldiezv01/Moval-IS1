@@ -234,24 +234,6 @@ class MovalApp(ctk.CTk):
         try:
             # Assumes current_user is Courier
             result = self.uc_route.execute(self.current_user['id'])
-            
-            path = os.path.realpath(result['map_path'])
-            print(f"DEBUG: Ruta del mapa generada: {path}")
-            if os.path.exists(path):
-                print("DEBUG: El archivo existe.")
-            else:
-                print("DEBUG: EL ARCHIVO NO EXISTE.")
-
-            msg = f"Ruta generada con éxito.\n\nTiempo: {result['total_time_minutes']} min\nDistancia: {result['total_distance_km']} km\n\n¿Abrir mapa ahora?"
-            if messagebox.askyesno("Ruta Optimizada", msg):
-                if sys.platform == "win32":
-                    # Forzar apertura con explorer
-                    import subprocess
-                    subprocess.Popen(['explorer', path], shell=True)
-                else:
-                    import webbrowser
-                    from urllib.request import pathname2url
-                    webbrowser.open('file:' + pathname2url(path))
             return result
         except Exception as e:
             print(f"ERROR: {e}")

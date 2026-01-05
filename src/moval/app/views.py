@@ -1,6 +1,7 @@
 import customtkinter as ctk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 import tkinter as tk
+import tkintermapview
 
 # Configuración global de apariencia
 ctk.set_appearance_mode("System")  # "Light", "Dark", "System"
@@ -363,10 +364,15 @@ class AdminView(BaseView):
         
         self.tree_ent = self.create_tree(self.tab_ent, ["ID", "Código", "Destino", "Repartidor", "Fecha Entrega"])
 
-        # --- 4. INCIDENCIAS (Solo visualización) ---
+        # --- 4. INCIDENCIAS (Re-Asignación y Visualización) ---
         ctrl_inc = ctk.CTkFrame(self.tab_inc, fg_color="transparent")
         ctrl_inc.pack(fill="x", pady=5)
         
+        ctk.CTkLabel(ctrl_inc, text="Reasignar a:").pack(side="left", padx=5)
+        self.courier_combo_inc = ctk.CTkComboBox(ctrl_inc, width=200, values=[])
+        self.courier_combo_inc.pack(side="left", padx=5)
+        
+        ctk.CTkButton(ctrl_inc, text="Reasignar", width=100, command=self.assign_incident).pack(side="left", padx=5)
         ctk.CTkButton(ctrl_inc, text="Ver Detalles", width=100, fg_color="#3b82f6", command=self.show_details).pack(side="left", padx=5)
         ctk.CTkButton(ctrl_inc, text="Actualizar", width=100, fg_color="#64748b", command=self.refresh_data).pack(side="right", padx=5)
         
@@ -462,8 +468,15 @@ class AdminView(BaseView):
         # Repartidores
         couriers = self.controller.get_available_couriers()
         self.courier_map = {f"{c['nombre']} {c['apellidos']} (ID: {c['id']})": c['id'] for c in couriers}
-        self.courier_combo.configure(values=list(self.courier_map.keys()))
-        if self.courier_map: self.courier_combo.set(list(self.courier_map.keys())[0])
+        
+        # Populate combos
+        c_vals = list(self.courier_map.keys())
+        self.courier_combo.configure(values=c_vals)
+        self.courier_combo_inc.configure(values=c_vals)
+        
+        if c_vals: 
+            self.courier_combo.set(c_vals[0])
+            self.courier_combo_inc.set(c_vals[0])
 
         # Envíos - Limpiar tablas
         for t in [self.tree_reg, self.tree_asg, self.tree_ent, self.tree_inc]:
@@ -536,6 +549,15 @@ class AdminView(BaseView):
         self.controller.assign_shipments(sids, cid)
         self.refresh_data()
 
+    def assign_incident(self):
+        selection = self.tree_inc.selection()
+        c_val = self.courier_combo_inc.get()
+        if not selection or not c_val: return
+        cid = self.courier_map[c_val]
+        sids = [int(self.tree_inc.item(i)['values'][0]) for i in selection]
+        self.controller.assign_shipments(sids, cid)
+        self.refresh_data()
+
     def unassign(self):
         selection = self.tree_asg.selection()
         if not selection: return
@@ -581,46 +603,58 @@ class CourierView(BaseView):
         super().__init__(parent, controller)
         self.create_header("Panel del Repartidor")
 
-        # --- SECCIÓN: ESTADO JORNADA ---
-        status_card = ctk.CTkFrame(self)
-        status_card.pack(fill="x", padx=20, pady=5)
+        # Main Layout: 2 Columns
+        self.main_content = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        # --- LEFT COLUMN (Controls & List) ---
+        self.left_col = ctk.CTkFrame(self.main_content, fg_color="transparent", width=400)
+        self.left_col.pack(side="left", fill="y", expand=False, padx=(0, 10))
+
+        # 1. Status
+        status_card = ctk.CTkFrame(self.left_col)
+        status_card.pack(fill="x", pady=(0, 10))
         
         self.status_lbl = ctk.CTkLabel(status_card, text="Jornada: ...", font=ctk.CTkFont(size=16))
-        self.status_lbl.pack(side="left", padx=20, pady=10)
+        self.status_lbl.pack(side="left", padx=15, pady=10)
         
-        self.btn_toggle_wd = ctk.CTkButton(status_card, text="Iniciar/Fin", command=self.toggle_wd)
-        self.btn_toggle_wd.pack(side="right", padx=20)
+        self.btn_toggle_wd = ctk.CTkButton(status_card, text="Iniciar/Fin", width=100, command=self.toggle_wd)
+        self.btn_toggle_wd.pack(side="right", padx=15)
 
-        # --- SECCIÓN: SIGUIENTE PARADA (Prominente) ---
-        self.next_stop_frame = ctk.CTkFrame(self, fg_color=("#e2e8f0", "#1e293b"), border_width=2, border_color="#3b82f6")
-        self.next_stop_frame.pack(fill="x", padx=20, pady=10)
+        # 2. Next Stop
+        self.next_stop_frame = ctk.CTkFrame(self.left_col, fg_color=("#e2e8f0", "#1e293b"), border_width=2, border_color="#3b82f6")
+        self.next_stop_frame.pack(fill="x", pady=(0, 10))
         
         ctk.CTkLabel(self.next_stop_frame, text="PRÓXIMA ENTREGA", font=ctk.CTkFont(size=14, weight="bold"), text_color="#3b82f6").pack(pady=(10, 0))
         
-        self.next_address_lbl = ctk.CTkLabel(self.next_stop_frame, text="Sin ruta generada", font=ctk.CTkFont(size=28, weight="bold"), wraplength=700)
+        self.next_address_lbl = ctk.CTkLabel(self.next_stop_frame, text="Sin ruta generada", font=ctk.CTkFont(size=20, weight="bold"), wraplength=350)
         self.next_address_lbl.pack(pady=10)
         
-        self.next_info_lbl = ctk.CTkLabel(self.next_stop_frame, text="-", font=ctk.CTkFont(size=16))
+        self.next_info_lbl = ctk.CTkLabel(self.next_stop_frame, text="-", font=ctk.CTkFont(size=14))
         self.next_info_lbl.pack(pady=(0, 10))
 
-        # --- TABLA DE PEDIDOS ---
-        self.tree = self.create_tree(self, ["#", "ID", "Destinatario", "Destino", "Estado"])
-        
-        act_f = ctk.CTkFrame(self, fg_color="transparent")
-        act_f.pack(fill="x", padx=20, pady=10)
-        ctk.CTkButton(act_f, text="Marcar como Entregado", fg_color="#10b981", height=45, font=ctk.CTkFont(weight="bold"), command=self.deliver).pack(side="left", padx=5)
-        ctk.CTkButton(act_f, text="Incidencia", fg_color="#f59e0b", height=45, command=self.incident).pack(side="left", padx=5)
-        ctk.CTkButton(act_f, text="Generar Ruta Óptima", fg_color="#3b82f6", height=45, command=self.generate_route).pack(side="left", padx=5)
-        ctk.CTkButton(act_f, text="Actualizar", fg_color="#64748b", command=self.refresh_data).pack(side="right")
+        # 3. Scrollable List (Cards)
+        self.scroll_frame = ctk.CTkScrollableFrame(self.left_col, fg_color="transparent")
+        self.scroll_frame.pack(fill="both", expand=True, pady=10)
 
-    def create_tree(self, parent, cols):
-        f = ctk.CTkFrame(parent); f.pack(fill="both", expand=True, padx=20)
-        t = ttk.Treeview(f, columns=cols, show='headings'); t.pack(side="left", fill="both", expand=True)
-        for c in cols: 
-            t.heading(c, text=c)
-            width = 40 if c == "#" else 120
-            t.column(c, width=width, anchor="center")
-        return t
+        # 4. Global Buttons
+        act_f = ctk.CTkFrame(self.left_col, fg_color="transparent")
+        act_f.pack(fill="x", pady=10)
+        
+        act_f.grid_columnconfigure((0, 1), weight=1)
+        
+        ctk.CTkButton(act_f, text="Generar Ruta", fg_color="#3b82f6", command=self.generate_route).grid(row=0, column=0, padx=2, pady=2, sticky="ew")
+        ctk.CTkButton(act_f, text="Actualizar", fg_color="#64748b", command=self.refresh_data).grid(row=0, column=1, padx=2, pady=2, sticky="ew")
+
+        # --- RIGHT COLUMN (Map) ---
+        self.right_col = ctk.CTkFrame(self.main_content, fg_color="transparent")
+        self.right_col.pack(side="right", fill="both", expand=True)
+
+        self.map_widget = tkintermapview.TkinterMapView(self.right_col, corner_radius=0)
+        self.map_widget.pack(fill="both", expand=True)
+        # Set default location (e.g., León, Spain)
+        self.map_widget.set_position(42.60003, -5.57032)
+        self.map_widget.set_zoom(13)
 
     def refresh_data(self):
         wd = self.controller.get_active_workday()
@@ -632,18 +666,58 @@ class CourierView(BaseView):
             self.btn_toggle_wd.configure(text="Iniciar Jornada", fg_color="#10b981")
 
         shipments = self.controller.get_my_shipments()
-        self.tree.delete(*self.tree.get_children())
         
-        # Filtramos solo los no entregados
-        pending = [s for s in shipments if s['estado'] != 'ENTREGADO']
+        # Clear existing cards
+        for widget in self.scroll_frame.winfo_children():
+            widget.destroy()
+        
+        # Filter pending (exclude Delivered AND Incidents)
+        pending = [s for s in shipments if s['estado'] not in ['ENTREGADO', 'INCIDENCIA']]
         
         for i, s in enumerate(pending):
-            destinatario = s.get('cliente_nombre') or f"Cliente #{s['id_cliente']}"
-            self.tree.insert("", "end", values=(i+1, s['id'], destinatario, s['direccion_destino'], s['estado']))
+            self.create_shipment_card(i + 1, s)
 
         if not pending:
             self.next_address_lbl.configure(text="¡Todo entregado!")
             self.next_info_lbl.configure(text="-")
+
+    def create_shipment_card(self, idx, shipment):
+        card = ctk.CTkFrame(self.scroll_frame, fg_color=("#ffffff", "#334155"), border_width=1, border_color="#cbd5e1")
+        card.pack(fill="x", pady=5, padx=2)
+        
+        # Top Row: ID and Status
+        top = ctk.CTkFrame(card, fg_color="transparent")
+        top.pack(fill="x", padx=10, pady=(10, 5))
+        
+        sid_txt = f"#{idx} | {shipment.get('codigo_seguimiento', shipment['id'])}"
+        ctk.CTkLabel(top, text=sid_txt, font=ctk.CTkFont(size=14, weight="bold")).pack(side="left")
+        
+        status_color = "#f59e0b" if shipment['estado'] == "INCIDENCIA" else "#3b82f6"
+        ctk.CTkLabel(top, text=shipment['estado'], text_color=status_color, font=ctk.CTkFont(size=12, weight="bold")).pack(side="right")
+        
+        # Middle: Address
+        mid = ctk.CTkFrame(card, fg_color="transparent")
+        mid.pack(fill="x", padx=10, pady=0)
+        
+        dest = shipment.get('cliente_nombre') or "Cliente desconocido"
+        ctk.CTkLabel(mid, text=dest, font=ctk.CTkFont(size=12)).pack(anchor="w")
+        ctk.CTkLabel(mid, text=shipment['direccion_destino'], font=ctk.CTkFont(size=13), wraplength=300).pack(anchor="w", pady=(2, 5))
+
+        # Bottom: Buttons
+        bot = ctk.CTkFrame(card, fg_color="transparent")
+        bot.pack(fill="x", padx=10, pady=(5, 10))
+        
+        # Only enable delivery for the first item (Next Stop)
+        is_next = (idx == 1)
+        del_state = "normal" if is_next else "disabled"
+        del_color = "#10b981" if is_next else "#94a3b8" # Green vs Gray
+
+        ctk.CTkButton(bot, text="Entregar", width=100, height=30, 
+                      fg_color=del_color, state=del_state,
+                      command=lambda s=shipment: self.deliver(s['id'])).pack(side="left", padx=(0, 5))
+        
+        ctk.CTkButton(bot, text="Incidencia", width=100, height=30, fg_color="#f59e0b", 
+                      command=lambda s=shipment: self.incident(s['id'])).pack(side="left")
 
     def toggle_wd(self):
         wd = self.controller.get_active_workday()
@@ -652,6 +726,9 @@ class CourierView(BaseView):
         self.refresh_data()
         
     def generate_route(self):
+        if not self.controller.get_active_workday():
+            messagebox.showwarning("Acción no permitida", "Debes iniciar tu jornada para generar una ruta.")
+            return
         try:
             route_data = self.controller.generate_my_route()
             if not route_data:
@@ -660,38 +737,86 @@ class CourierView(BaseView):
             ordered = route_data.get('ordered_shipments', [])
             
             if ordered:
-                # Actualizar Siguiente Parada
+                # Update Next Stop
                 next_pkg = ordered[0]
                 self.next_address_lbl.configure(text=next_pkg['direccion'].upper())
                 self.next_info_lbl.configure(text=f"Pedido: {next_pkg.get('codigo', '?')} - {next_pkg.get('descripcion', '')}")
 
-                # Actualizar Tabla
-                self.tree.delete(*self.tree.get_children())
-                for i, s in enumerate(ordered):
-                    destinatario = f"Paquete {s.get('codigo', s.get('id'))}"
-                    self.tree.insert("", "end", values=(
-                        i+1, 
-                        s['id'], 
-                        destinatario, 
-                        s['direccion'], 
-                        s.get('estado', 'ASIGNADO')
-                    ))
+                # Refresh list with ordered shipments
+                # Note: generate_my_route returns partial dicts in 'ordered_shipments'. 
+                # We need to map them back to full shipment objects or just use what we have.
+                # The 'ordered_shipments' contains: id, codigo, direccion, latitud, longitud, estado, descripcion.
+                # It misses 'cliente_nombre' which create_shipment_card uses.
+                # So we should probably re-fetch or merge data. 
+                # For simplicity, let's just refresh_data() normally. 
+                # Ideally, refresh_data should respect order if we persisted it, but the user reverted that requirement.
+                # So the list will just be the default list. 
                 
-                messagebox.showinfo("Ruta", "Ruta generada y optimizada.")
+                # Wait, if the list is not ordered, the "Next Delivery" label might contradict the list.
+                # But since we reverted "caching order", the list is just "pending shipments".
+                # However, generate_route DOES return an ordered list.
+                # Let's populate the scroll frame with THIS ordered list for now to show the route order visually.
+                
+                # We need to adapt the ordered dicts to what create_shipment_card expects
+                for widget in self.scroll_frame.winfo_children():
+                    widget.destroy()
+
+                for i, s in enumerate(ordered):
+                    # construct a compat dict
+                    s_compat = {
+                        'id': s['id'],
+                        'codigo_seguimiento': s.get('codigo'),
+                        'estado': s.get('estado', 'ASIGNADO'),
+                        'cliente_nombre': 'Ver detalle', # Missing in simplified route obj
+                        'direccion_destino': s['direccion']
+                    }
+                    self.create_shipment_card(i + 1, s_compat)
+
+            # Update Map on widget
+            self.plot_route_on_widget(route_data)
+
         except Exception as e:
             messagebox.showerror("Error Ruta", str(e))
 
-    def deliver(self):
-        # Intentar entregar el primero de la lista (el actual) o el seleccionado
-        sel = self.tree.selection()
-        sid = None
-        if sel:
-            sid = int(self.tree.item(sel[0])['values'][1]) # Columna 1 es ID
-        else:
-            # Si no hay selección, intentamos con el primero del Treeview
-            children = self.tree.get_children()
-            if children:
-                sid = int(self.tree.item(children[0])['values'][1])
+    def plot_route_on_widget(self, route_data):
+        self.map_widget.delete_all_marker()
+        self.map_widget.delete_all_path()
+
+        coords = route_data.get('geometry_coordinates', [])
+        if not coords: return
+
+        # Set Path
+        self.map_widget.set_path(coords, color="blue", width=5)
+        
+        # Fit map (take first coord)
+        if len(coords) > 0:
+            self.map_widget.set_position(coords[0][0], coords[0][1])
+            self.map_widget.set_zoom(13)
+
+        # Markers
+        # Start
+        start_pos = coords[0]
+        self.map_widget.set_marker(start_pos[0], start_pos[1], text="INICIO", marker_color_circle="green")
+        
+        # End (Warehouse)
+        end_pos = coords[-1]
+        self.map_widget.set_marker(end_pos[0], end_pos[1], text="ALMACÉN", marker_color_circle="red")
+
+        # Shipments
+        ordered = route_data.get('ordered_shipments', [])
+        for i, pkg in enumerate(ordered):
+            lat = float(pkg['latitud'])
+            lon = float(pkg['longitud'])
+            self.map_widget.set_marker(
+                lat, lon, 
+                text=f"{i+1}", 
+                marker_color_circle="blue"
+            )
+
+    def deliver(self, sid):
+        if not self.controller.get_active_workday():
+            messagebox.showwarning("Acción no permitida", "Debes iniciar tu jornada para marcar entregas.")
+            return
 
         if sid:
             try:
@@ -703,11 +828,12 @@ class CourierView(BaseView):
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
-    def incident(self):
-        sel = self.tree.selection()
-        if sel:
-            # En el nuevo tree el ID está en el indice 1
-            sid = int(self.tree.item(sel[0])['values'][1])
+    def incident(self, sid):
+        if not self.controller.get_active_workday():
+            messagebox.showwarning("Acción no permitida", "Debes iniciar tu jornada para reportar incidencias.")
+            return
+        
+        if sid:
             msg = tk.simpledialog.askstring("Incidencia", "Descripción:")
             if msg: self.controller.report_incident(sid, msg); self.refresh_data()
             
@@ -724,7 +850,7 @@ class CourierView(BaseView):
         # Actions refer to controller methods
         return [
             ("Iniciar/Finalizar Jornada", lambda: self.controller.start_workday() if not self.controller.get_active_workday() else self.controller.end_workday()),
-            ("Generar Ruta", lambda: self.controller.generate_my_route()),
+            ("Generar Ruta", lambda: self.generate_route()),
             ("Actualizar", lambda: self.refresh_data()),
         ]
 
@@ -736,56 +862,112 @@ class CustomerView(BaseView):
         super().__init__(parent, controller)
         self.create_header("Mis Pedidos")
 
-        self.tree = self.create_tree(self, ["ID", "Descripción", "Estado"])
-        
+        # Scrollable container for cards
+        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        self.scroll_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+
+        # Bottom Action Bar (Just Refresh)
         act_f = ctk.CTkFrame(self, fg_color="transparent")
         act_f.pack(fill="x", padx=20, pady=10)
-        ctk.CTkButton(act_f, text="Ver Detalles / ETA", command=self.details).pack(side="left", padx=5)
-        ctk.CTkButton(act_f, text="Valorar", fg_color="#f59e0b", command=self.rate).pack(side="left", padx=5)
-        ctk.CTkButton(act_f, text="Ver Repartidor", fg_color="#64748b", command=self.view_courier).pack(side="left", padx=5)
-        ctk.CTkButton(act_f, text="Actualizar", command=self.refresh_data).pack(side="right")
-
-    def create_tree(self, parent, cols):
-        f = ctk.CTkFrame(parent); f.pack(fill="both", expand=True, padx=20)
-        t = ttk.Treeview(f, columns=cols, show='headings'); t.pack(side="left", fill="both", expand=True)
-        for c in cols: t.heading(c, text=c); t.column(c, width=150)
-        return t
+        ctk.CTkButton(act_f, text="Actualizar Lista", command=self.refresh_data).pack(side="right")
 
     def refresh_data(self):
         shipments = self.controller.get_my_shipments()
-        self.tree.delete(*self.tree.get_children())
+        
+        # Clear
+        for w in self.scroll_frame.winfo_children():
+            w.destroy()
+
+        if not shipments:
+             ctk.CTkLabel(self.scroll_frame, text="No tienes pedidos activos.", font=ctk.CTkFont(size=16)).pack(pady=20)
+             return
+
         for s in shipments:
-            self.tree.insert("", "end", values=(s['id'], s['descripcion'], s['estado']))
+            self.create_shipment_card(s)
 
-    def get_sel(self):
-        sel = self.tree.selection()
-        return int(self.tree.item(sel[0])['values'][0]) if sel else None
+    def create_shipment_card(self, shipment):
+        card = ctk.CTkFrame(self.scroll_frame, fg_color=("#ffffff", "#334155"), border_width=1, border_color="#cbd5e1")
+        card.pack(fill="x", pady=10, padx=5)
 
-    def details(self):
-        sid = self.get_sel()
-        if not sid: return
+        # Header: Code + Status
+        header = ctk.CTkFrame(card, fg_color="transparent")
+        header.pack(fill="x", padx=15, pady=(15, 5))
+        
+        code = shipment.get('codigo_seguimiento') or str(shipment['id'])
+        ctk.CTkLabel(header, text=f"Pedido: {code}", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
+        
+        st_color = "#3b82f6"
+        if shipment['estado'] == "ENTREGADO": st_color = "#10b981"
+        elif shipment['estado'] == "INCIDENCIA": st_color = "#ef4444"
+        
+        ctk.CTkLabel(header, text=shipment['estado'], text_color=st_color, font=ctk.CTkFont(weight="bold")).pack(side="right")
+
+        # Body: Description
+        body = ctk.CTkFrame(card, fg_color="transparent")
+        body.pack(fill="x", padx=15, pady=5)
+        
+        desc = shipment.get('descripcion') or "Sin descripción"
+        ctk.CTkLabel(body, text=desc, font=ctk.CTkFont(size=14), wraplength=600, anchor="w", justify="left").pack(fill="x")
+
+        # Footer: Buttons
+        footer = ctk.CTkFrame(card, fg_color="transparent")
+        footer.pack(fill="x", padx=15, pady=(10, 15))
+
+        sid = shipment['id']
+        
+        ctk.CTkButton(footer, text="Detalles / ETA", width=120, height=32, 
+                      command=lambda: self.details(sid)).pack(side="left", padx=(0, 10))
+                      
+        if shipment['estado'] == "ENTREGADO":
+             ctk.CTkButton(footer, text="Valorar", width=100, height=32, fg_color="#f59e0b",
+                           command=lambda: self.rate(sid)).pack(side="left", padx=(0, 10))
+        
+        ctk.CTkButton(footer, text="Ver Repartidor", width=120, height=32, fg_color="#64748b",
+                      command=lambda: self.view_courier(sid)).pack(side="left")
+
+    def details(self, sid):
         det = self.controller.get_shipment_details(sid)
         eta = self.controller.calculate_eta(sid)
         
-        # Usar el texto formateado si existe, o fallback al antiguo
         eta_str = eta.get("texto_mostrar", f"{eta.get('eta_minutos', '?')} min")
         
-        messagebox.showinfo("Detalles", f"Origen: {det['direccion_origen']}\nDestino: {det['direccion_destino']}\nETA: {eta_str}")
+        msg = f"--- DETALLES ---\n\n"
+        msg += f"Código: {det.get('codigo_seguimiento')}\n"
+        msg += f"Descripción: {det.get('descripcion')}\n"
+        msg += f"Origen: {det['direccion_origen']}\n"
+        msg += f"Destino: {det['direccion_destino']}\n"
+        msg += f"\nEstado: {det['estado']}\n"
+        
+        if det['estado'] not in ['ENTREGADO', 'CANCELADO']:
+             msg += f"ETA Estimado: {eta_str}\n"
 
-    def rate(self):
-        sid = self.get_sel()
-        if not sid: return
+        messagebox.showinfo("Detalles del Pedido", msg)
+
+    def rate(self, sid):
         score = tk.simpledialog.askinteger("Valorar", "Puntuación (1-5):", minvalue=1, maxvalue=5)
         if score:
-            com = tk.simpledialog.askstring("Valorar", "Comentario:")
+            com = tk.simpledialog.askstring("Valorar", "Comentario (Opcional):")
             self.controller.rate_delivery(sid, score, com)
+
+    def view_courier(self, sid):
+        det = self.controller.get_shipment_details(sid)
+        cid = det.get('id_mensajero')
+        if cid:
+            p = self.controller.get_courier_profile(cid)
+            info = f"Nombre: {p['nombre']} {p['apellidos']}\n"
+            info += f"Puntuación Media: {p.get('puntuacion_media', 'N/A')}\n"
+            info += f"Total Entregas: {p.get('total_entregas', 0)}"
+            messagebox.showinfo("Información del Repartidor", info)
+        else:
+            messagebox.showinfo("Info", "Este pedido aún no tiene un repartidor asignado.")
 
     def get_help_text(self):
         return (
             "Panel Cliente:\n\n"
-            "- Selecciona un pedido y pulsa 'Ver Detalles / ETA' para ver información.\n"
-            "- Usa 'Valorar' para dejar una puntuación.\n"
-            "- 'Ver Repartidor' muestra datos del mensajero asignado.\n"
+            "- Cada tarjeta representa un pedido.\n"
+            "- Usa 'Detalles / ETA' para ver el tiempo estimado de llegada.\n"
+            "- Si el pedido fue entregado, puedes 'Valorar' el servicio.\n"
+            "- 'Ver Repartidor' muestra quién te trae el paquete.\n"
         )
 
     def get_options(self):
@@ -793,13 +975,3 @@ class CustomerView(BaseView):
             ("Actualizar", lambda: self.refresh_data()),
             ("Ver Ayuda", lambda: self.open_help()),
         ]
-
-    def view_courier(self):
-        sid = self.get_sel()
-        if not sid: return
-        det = self.controller.get_shipment_details(sid)
-        cid = det.get('id_mensajero')
-        if cid:
-            p = self.controller.get_courier_profile(cid)
-            messagebox.showinfo("Repartidor", f"Nombre: {p['nombre']}\nEntregas: {p['total_entregas']}\nMedia: {p['puntuacion_media'] or 'N/A'}")
-        else: messagebox.showinfo("Info", "Sin repartidor asignado.")
