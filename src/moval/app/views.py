@@ -19,19 +19,79 @@ class BaseView(ctk.CTkFrame):
         
         lbl = ctk.CTkLabel(header, text=title_text, font=ctk.CTkFont(size=24, weight="bold"))
         lbl.pack(side="left")
-        
-        btn_logout = ctk.CTkButton(header, text="Cerrar Sesión", fg_color="#ef4444", hover_color="#dc2626", 
-                                   width=100, command=self.controller.logout)
+
+        # Botón Opciones (⚙)
+        btn_options = ctk.CTkButton(
+            header,
+            text="⚙",
+            width=40,
+            height=32,
+            corner_radius=8,
+            command=self.open_options
+        )
+        btn_options.pack(side="right", padx=(5, 0))
+
+        # Botón Ayuda (?)
+        btn_help = ctk.CTkButton(
+            header,
+            text="❓",
+            width=40,
+            height=32,
+            corner_radius=8,
+            command=self.open_help
+        )
+        btn_help.pack(side="right", padx=(5, 0))
+
+        btn_logout = ctk.CTkButton(
+            header,
+            text="Cerrar Sesión",
+            fg_color="#ef4444",
+            hover_color="#dc2626",
+            width=100,
+            command=self.controller.logout
+        )
         btn_logout.pack(side="right", padx=5)
 
-        btn_profile = ctk.CTkButton(header, text="Mi Perfil", fg_color="#64748b", hover_color="#475569", 
-                                    width=100, command=self.open_profile)
+        btn_profile = ctk.CTkButton(
+            header,
+            text="Mi Perfil",
+            fg_color="#64748b",
+            hover_color="#475569",
+            width=100,
+            command=self.open_profile  # <- aquí necesita existir open_profile
+        )
         btn_profile.pack(side="right", padx=5)
         
         return header
 
+    # -------------------------
+    # Funciones que deben existir
+    # -------------------------
     def open_profile(self):
+        """Abrir diálogo de perfil. Llama a ProfileDialog con el controller."""
         ProfileDialog(self.controller)
+
+    def get_help_text(self) -> str:
+        """Texto de ayuda por defecto; las vistas pueden sobrescribirlo."""
+        return (
+            "Ayuda general:\n"
+            "- Navega por las pestañas.\n"
+            "- Usa los botones en la vista para acciones específicas.\n"
+            "- Pulsa ⚙ para opciones rápidas.\n"
+            "- Pulsa Mi Perfil para editar tus datos."
+        )
+
+    def get_options(self) -> list:
+        """Opciones por defecto (vacío). Las vistas pueden devolver [(label, callable), ...]."""
+        return []
+
+    def open_help(self):
+        """Abre el diálogo de ayuda con el texto contextual de la vista actual."""
+        HelpDialog(self, self.get_help_text())
+
+    def open_options(self):
+        """Abre el diálogo de opciones con los botones devueltos por get_options()."""
+        OptionsDialog(self, self.get_options())
 
 # ==========================================
 # DIALOGO: PERFIL
@@ -42,8 +102,6 @@ class ProfileDialog(ctk.CTkToplevel):
         self.controller = controller
         self.title("Ajustes de Perfil")
         self.geometry("450x550")
-        
-        # Centrar y dar foco
         self.after(100, self.focus_force)
         self.resizable(False, False)
         
@@ -53,19 +111,7 @@ class ProfileDialog(ctk.CTkToplevel):
         ctk.CTkLabel(main_frame, text="Mi Perfil", font=ctk.CTkFont(size=24, weight="bold")).pack(pady=(0, 20))
         ctk.CTkLabel(main_frame, text="Actualice sus datos personales a continuación:", font=ctk.CTkFont(size=13)).pack(pady=(0, 20))
         
-        # Recargar datos completos del usuario desde la BD
-        # El objeto en memoria puede estar incompleto (solo ID/Rol)
-        current_id = controller.current_user['id']
-        # Usamos el método interno del controller para buscar por ID si existe, o por email si no.
-        # Como no tenemos un método público 'get_user_by_id' en main, usamos el repo directo o añadimos uno.
-        # Mejor opción: El controller ya tiene acceso a user_repo. 
-        # Vamos a pedirle al controller que nos refresque el usuario.
-        
-        # Simulamos la petición al controller para obtener datos frescos
-        # (Esto requeriría añadir un método en main.py, pero para ser rápidos, 
-        # asumiremos que controller.user_repo es accesible o usamos un método existente).
-        
-        # Solución limpia: Usar controller.get_current_user_data()
+        # Recuperar datos del controller (método ya existía en tu main)
         user_data = controller.get_current_user_data()
         
         self.entries = {}
@@ -76,16 +122,12 @@ class ProfileDialog(ctk.CTkToplevel):
             lbl.pack(anchor="w", pady=(5, 0))
             
             entry = ctk.CTkEntry(main_frame, width=350, placeholder_text=f"Ingrese su {label_text.lower()}")
-            
-            # Rellenar con el dato fresco
             current_val = user_data.get(key, '')
             if current_val is None: current_val = ''
             entry.insert(0, str(current_val))
-            
             entry.pack(pady=(0, 5))
             self.entries[key] = entry
             
-        # Botones (usando pack con side para asegurar visibilidad)
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         btn_frame.pack(fill="x", pady=20)
         
@@ -101,13 +143,90 @@ class ProfileDialog(ctk.CTkToplevel):
         btn_cancel.pack(side="right", expand=True, padx=(5, 0))
 
     def save(self):
-        # Recoger solo los campos editados
         data = {k: v.get() for k, v in self.entries.items()}
-        
         if self.controller.update_profile(data):
-            # messagebox.showinfo se usa para feedback visual estándar
             messagebox.showinfo("Perfil", "Tus datos han sido actualizados con éxito.")
             self.destroy()
+
+
+class HelpDialog(ctk.CTkToplevel):
+    def __init__(self, parent_view: BaseView, help_text: str):
+        super().__init__(parent_view)
+        self.title("Ayuda")
+        self.geometry("500x340")
+        self.resizable(False, False)
+        self.after(100, self.focus_force)
+
+        frame = ctk.CTkFrame(self, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        label = ctk.CTkLabel(frame, text="Ayuda", font=ctk.CTkFont(size=18, weight="bold"))
+        label.pack(anchor="w", pady=(0, 10))
+
+        txt = tk.Text(frame, wrap="word", height=12)
+        txt.insert("1.0", help_text)
+        txt.config(state="disabled")
+        txt.pack(fill="both", expand=True)
+
+        btn_close = ctk.CTkButton(frame, text="Cerrar", command=self.destroy)
+        btn_close.pack(pady=(10, 0))
+
+class HelpDialog(ctk.CTkToplevel):
+    def __init__(self, parent_view: BaseView, help_text: str):
+        super().__init__(parent_view)
+        self.title("Ayuda")
+        self.geometry("500x340")
+        self.resizable(False, False)
+        self.after(100, self.focus_force)
+
+        frame = ctk.CTkFrame(self, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        label = ctk.CTkLabel(frame, text="Ayuda", font=ctk.CTkFont(size=18, weight="bold"))
+        label.pack(anchor="w", pady=(0, 10))
+
+        txt = tk.Text(frame, wrap="word", height=12)
+        txt.insert("1.0", help_text)
+        txt.config(state="disabled")
+        txt.pack(fill="both", expand=True)
+
+        btn_close = ctk.CTkButton(frame, text="Cerrar", command=self.destroy)
+        btn_close.pack(pady=(10, 0))
+
+
+class OptionsDialog(ctk.CTkToplevel):
+    def __init__(self, parent_view: BaseView, options: list):
+        super().__init__(parent_view)
+        self.title("Opciones")
+        self.geometry("420x260")
+        self.resizable(False, False)
+        self.after(100, self.focus_force)
+
+        frame = ctk.CTkFrame(self, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        ctk.CTkLabel(frame, text="Opciones", font=ctk.CTkFont(size=18, weight="bold")).pack(anchor="w", pady=(0, 10))
+
+        if not options:
+            ctk.CTkLabel(frame, text="No hay opciones disponibles para esta vista.").pack(pady=20)
+        else:
+            for label, action in options:
+                def make_cb(fn):
+                    def cb():
+                        try:
+                            fn()
+                        except Exception as e:
+                            messagebox.showerror("Error", str(e))
+                        finally:
+                            try:
+                                parent_view.refresh_data()
+                            except:
+                                pass
+                    return cb
+                btn = ctk.CTkButton(frame, text=label, command=make_cb(action))
+                btn.pack(fill="x", pady=6)
+
+        ctk.CTkButton(frame, text="Cerrar", command=self.destroy).pack(pady=(10, 0))
 
 # ==========================================
 # LOGIN
@@ -363,6 +482,21 @@ class AdminView(BaseView):
         roles = {"Cliente": "CUSTOMER", "Repartidor": "COURIER", "Administrador": "ADMIN"}
         self.controller.change_user_role(self.found_user['email'], roles[self.role_combo.get()])
         self.search_user()
+        
+    def get_help_text(self):
+        return (
+            "Panel de Administración:\n\n"
+            "- 'Asignar' y 'Desasignar' para gestionar mensajeros.\n"
+            "- Usa 'Ver Detalles' para ver información completa de un envío.\n"
+            "- En la pestaña Usuarios puedes buscar y cambiar roles.\n"
+        )
+
+    def get_options(self):
+        return [
+            ("Actualizar Datos", lambda: self.refresh_data()),
+            ("Generar Reporte Repartidores", lambda: self.controller.get_all_couriers_report()),
+        ]
+
 
 # ==========================================
 # REPARTIDOR (COURIER)
@@ -438,6 +572,23 @@ class CourierView(BaseView):
             sid = int(self.tree.item(sel[0])['values'][0])
             msg = tk.simpledialog.askstring("Incidencia", "Descripción:")
             if msg: self.controller.report_incident(sid, msg); self.refresh_data()
+            
+    def get_help_text(self):
+        return (
+            "Panel del Repartidor:\n\n"
+            "- Pulsar 'Iniciar/Fin' para comenzar o finalizar tu jornada.\n"
+            "- Seleccionar un envío y pulsar 'Entregado' para marcar entrega.\n"
+            "- 'Incidencia' permite reportar problemas en un envío.\n"
+            "- 'Generar Ruta' optimiza tu recorrido y abre un mapa.\n"
+        )
+
+    def get_options(self):
+        # Actions refer to controller methods
+        return [
+            ("Iniciar/Finalizar Jornada", lambda: self.controller.start_workday() if not self.controller.get_active_workday() else self.controller.end_workday()),
+            ("Generar Ruta", lambda: self.controller.generate_my_route()),
+            ("Actualizar", lambda: self.refresh_data()),
+        ]
 
 # ==========================================
 # CLIENTE
@@ -490,6 +641,20 @@ class CustomerView(BaseView):
         if score:
             com = tk.simpledialog.askstring("Valorar", "Comentario:")
             self.controller.rate_delivery(sid, score, com)
+
+    def get_help_text(self):
+        return (
+            "Panel Cliente:\n\n"
+            "- Selecciona un pedido y pulsa 'Ver Detalles / ETA' para ver información.\n"
+            "- Usa 'Valorar' para dejar una puntuación.\n"
+            "- 'Ver Repartidor' muestra datos del mensajero asignado.\n"
+        )
+
+    def get_options(self):
+        return [
+            ("Actualizar", lambda: self.refresh_data()),
+            ("Ver Ayuda", lambda: self.open_help()),
+        ]
 
     def view_courier(self):
         sid = self.get_sel()

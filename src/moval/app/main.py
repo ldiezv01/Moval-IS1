@@ -40,6 +40,7 @@ class MovalApp(ctk.CTk):
         super().__init__()
         self.title("Moval Logistics System")
         self.geometry("1100x750")
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         
         self.init_db()
         
@@ -111,6 +112,19 @@ class MovalApp(ctk.CTk):
         frame.tkraise()
         if hasattr(frame, "refresh_data") and self.current_user:
             frame.refresh_data()
+            
+    def on_close(self):
+        """Handler para la X: confirmar y cerrar la app limpiamente."""
+        try:
+            if messagebox.askokcancel("Salir", "¿Deseas salir de Moval?"):
+                # Si necesitas hacer limpieza: aquí es el lugar (persistir estado, cerrar conexiones…)
+                self.destroy()
+        except Exception:
+            # En caso de que messagebox falle (entorno sin GUI), cerramos directo
+            try:
+                self.destroy()
+            except:
+                os._exit(0)
 
     # --- ACTIONS ---
     def login(self, email, password):

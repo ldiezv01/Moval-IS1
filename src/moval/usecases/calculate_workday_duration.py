@@ -38,7 +38,7 @@ class CalculateWorkdayDuration:
                 "eta_reason": "No hay envíos pendientes"
             }
 
-        eta_minutes = (
+        eta_minutes = (                                             #  ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠ ⚠
             shipment_count * self.DEFAULT_MIN_PER_SHIPMENT
             + self.DEFAULT_BASE_MIN
         )
