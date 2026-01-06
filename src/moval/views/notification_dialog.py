@@ -69,8 +69,17 @@ class NotificationDialog(ctk.CTkToplevel):
     def time_ago(self, date_str):
         if not date_str: return "Recientemente"
         try:
-            # Parse simple SQL datetime
-            dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            dt = None
+            if isinstance(date_str, datetime):
+                dt = date_str
+            elif isinstance(date_str, str):
+                # Eliminar microsegundos si existen (2023-01-01 10:00:00.123 -> 2023-01-01 10:00:00)
+                if "." in date_str:
+                    date_str = date_str.split(".")[0]
+                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            else:
+                return "Fecha desconocida"
+
             now = datetime.now()
             diff = now - dt
             
@@ -85,5 +94,6 @@ class NotificationDialog(ctk.CTkToplevel):
             if minutes > 0:
                 return f"Hace {minutes} min"
             return "Hace un momento"
-        except:
+        except Exception as e:
+            # print(f"DEBUG Date Error: {e}")
             return str(date_str)
