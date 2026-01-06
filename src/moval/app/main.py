@@ -35,11 +35,21 @@ from moval.usecases.generate_delivery_route import GenerateDeliveryRoute
 
 from moval.app.views import LoginView, RegisterView, AdminView, CourierView, CustomerView
 
+try:
+    from PIL import Image, ImageTk
+    _HAS_PIL = True
+except Exception:
+    _HAS_PIL = False
+    
+WINDOW_ICON_SIZE = 100   # icono de la ventana
+LOGO_SIZE = 180         # logo que aparece en login/register
+
 class MovalApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Moval Logistics System")
         self.geometry("1100x750")
+        self._load_icons()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         
         self.init_db()
@@ -256,6 +266,70 @@ class MovalApp(ctk.CTk):
     def get_courier_profile(self, cid):
         try: return self.uc_courier_profile.execute(self.current_user, cid)
         except: return None
+        
+    def _load_icons(self):
+        """
+        Carga y prepara el icono de la app y el logo redimensionado.
+        - Usa Pillow si está disponible para redimensionar.
+        - Para el logo que se mostrará en etiquetas usamos ctk.CTkImage (evita la warning HighDPI).
+        - Para el icono de la ventana usamos ImageTk.PhotoImage (necesario para iconphoto()).
+        """
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        icon_path = os.path.join(root, 'assets', 'img', 'moval_icon.png')
+
+        self._app_icon = None
+        self._logo_image = None
+
+        if not os.path.exists(icon_path):
+            return
+
+        try:
+            if _HAS_PIL:
+                # Abrir con PIL
+                img = Image.open(icon_path).convert("RGBA")
+
+                # Imagen para el icono de la ventana (pequeña) -> PhotoImage para iconphoto
+                try:
+                    icon_img = img.resize((WINDOW_ICON_SIZE, WINDOW_ICON_SIZE), Image.LANCZOS)
+                    self._app_icon = ImageTk.PhotoImage(icon_img)
+                    try:
+                        # aplicarlo como icono de la ventana principal
+                        self.iconphoto(False, self._app_icon)
+                    except Exception:
+                        pass
+                except Exception:
+                    self._app_icon = None
+
+                # Imagen para mostrar en CTkLabel: usamos CTkImage (acepta PIL.Image)
+                try:
+                    logo_pil = img.resize((LOGO_SIZE, LOGO_SIZE), Image.LANCZOS)
+                    # CTkImage evita la advertencia de HighDPI al pasar a CTkLabel
+                    self._logo_image = ctk.CTkImage(light_image=logo_pil, size=(LOGO_SIZE, LOGO_SIZE))
+                except Exception:
+                    # fallback sencillo: convertir a PhotoImage si CTkImage falla
+                    try:
+                        fallback = logo_pil
+                        self._logo_image = ImageTk.PhotoImage(fallback)
+                    except Exception:
+                        self._logo_image = None
+            else:
+                # fallback sin Pillow (no redimensiona)
+                import tkinter as _tk
+                self._app_icon = _tk.PhotoImage(file=icon_path)
+                self._logo_image = self._app_icon
+                try:
+                    self.iconphoto(False, self._app_icon)
+                except Exception:
+                    pass
+        except Exception:
+            self._app_icon = None
+            self._logo_image = None
+
+    def get_app_icon(self):
+        return getattr(self, "_app_icon", None)
+
+    def get_logo_image(self):
+        return getattr(self, "_logo_image", None)
 
 if __name__ == "__main__":
     app = MovalApp()

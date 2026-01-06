@@ -18,6 +18,17 @@ class BaseView(ctk.CTkFrame):
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", padx=20, pady=20)
         
+        try:
+            icon = None
+            if hasattr(self.controller, "get_app_icon"):
+                icon = self.controller.get_app_icon()
+            if icon:
+                icon_lbl = ctk.CTkLabel(header, image=icon, text="")
+                icon_lbl.image = icon  # mantener referencia
+                icon_lbl.pack(side="left", padx=(0, 10))
+        except Exception:
+            pass
+        
         lbl = ctk.CTkLabel(header, text=title_text, font=ctk.CTkFont(size=24, weight="bold"))
         lbl.pack(side="left")
 
@@ -235,30 +246,80 @@ class OptionsDialog(ctk.CTkToplevel):
 class LoginView(BaseView):
     def __init__(self, parent, controller):
         super().__init__(parent, controller)
+    
+        # Fondo general
+        self.configure(fg_color="transparent")
+
+        # CONTENEDOR CENTRAL
+        self.card = ctk.CTkFrame(self, width=500, corner_radius=20, border_width=3,
+                                border_color=("#e2e8f0", "#1e293b"))
+        self.card.place(relx=0.5, rely=0.5, anchor="center")
         
-        self.frame = ctk.CTkFrame(self, width=400, height=500)
-        self.frame.place(relx=0.5, rely=0.5, anchor="center")
-        
-        ctk.CTkLabel(self.frame, text="MOVAL LOGISTICS", font=ctk.CTkFont(size=26, weight="bold")).pack(pady=30)
-        
-        self.email_entry = ctk.CTkEntry(self.frame, placeholder_text="Correo electrónico", width=250)
-        self.email_entry.pack(pady=10)
+        # Ajustamos la altura para que quepa todo sin problemas
+        self.card.pack_propagate(False)
+        self.card.configure(height=600) 
+
+        # --- Cabecera ---
+        try:
+            logo = controller.get_logo_image()
+            if logo:
+                logo_lbl = ctk.CTkLabel(self.card, image=logo, text="")
+                logo_lbl.pack(pady=(40, 10))
+            else:
+                raise Exception
+        except:
+            ctk.CTkLabel(self.card, text="MOVAL", 
+                        font=ctk.CTkFont(size=40, weight="bold"),
+                        text_color=("#1e293b", "#f8fafc")).pack(pady=(40, 5))
+
+        ctk.CTkLabel(self.card, text="Logística simple y efectiva", 
+                    font=ctk.CTkFont(size=15),
+                    text_color="gray").pack(pady=(0, 20))
+
+        # --- Formulario ---
+        form_container = ctk.CTkFrame(self.card, fg_color="transparent")
+        form_container.pack(fill="x", padx=60)
+
+        # Título Centrado
+        ctk.CTkLabel(form_container, text="Iniciar Sesión", 
+                    font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(10, 20))
+
+        # Inputs
+        self.email_entry = ctk.CTkEntry(form_container, placeholder_text="Correo electrónico",
+                                    height=50, corner_radius=12)
+        self.email_entry.pack(fill="x", pady=10)
         self.email_entry.insert(0, "admin@moval.com")
 
-        self.pass_entry = ctk.CTkEntry(self.frame, placeholder_text="Contraseña", show="*", width=250)
-        self.pass_entry.pack(pady=10)
+        self.pass_entry = ctk.CTkEntry(form_container, placeholder_text="Contraseña", 
+                                    show="*", height=50, corner_radius=12)
+        self.pass_entry.pack(fill="x", pady=10)
         self.pass_entry.insert(0, "1234")
 
-        btn_login = ctk.CTkButton(self.frame, text="ENTRAR", command=self.do_login, width=250, font=ctk.CTkFont(weight="bold"))
-        btn_login.pack(pady=20)
+        # Botón ENTRAR
+        btn_login = ctk.CTkButton(form_container, text="ENTRAR", 
+                                command=self.do_login, 
+                                corner_radius=12, height=50,
+                                font=ctk.CTkFont(size=15, weight="bold"),
+                                fg_color="#3b82f6", hover_color="#2563eb")
+        btn_login.pack(fill="x", pady=(20, 10))
 
-        btn_reg = ctk.CTkButton(self.frame, text="¿No tienes cuenta? Regístrate", fg_color="transparent", 
-                                   text_color=("#3b82f6", "#60a5fa"), hover_color=("#f1f5f9", "#1e293b"),
-                                   command=lambda: controller.switch_view("register"))
-        btn_reg.pack(pady=10)
+        # --- BOTÓN DE REGISTRO (Ahora dentro del flujo principal para que no desaparezca) ---
+        btn_reg = ctk.CTkButton(self.card, text="¿No tienes cuenta? Regístrate",
+                               fg_color="transparent",
+                               text_color=("#3b82f6", "#60a5fa"),
+                               hover_color=("#f1f5f9", "#1e293b"),
+                               font=ctk.CTkFont(size=13, weight="bold"),
+                               command=lambda: controller.switch_view("register"))
+        btn_reg.pack(pady=(10, 20))
 
     def do_login(self):
-        self.controller.login(self.email_entry.get(), self.pass_entry.get())
+        """Ejecuta el login usando el controller (main.MovalApp)."""
+        try:
+            email = self.email_entry.get()
+            password = self.pass_entry.get()
+            self.controller.login(email, password)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
 
 # ==========================================
 # REGISTRO
@@ -266,38 +327,87 @@ class LoginView(BaseView):
 class RegisterView(BaseView):
     def __init__(self, parent, controller):
         super().__init__(parent, controller)
+
+        self.configure(fg_color="transparent")
+
+        # CONTENEDOR CENTRAL
+        self.card = ctk.CTkFrame(self, width=500, corner_radius=20, border_width=3,
+                                border_color=("#e2e8f0", "#1e293b"))
+        self.card.place(relx=0.5, rely=0.5, anchor="center")
         
-        self.frame = ctk.CTkFrame(self, width=400)
-        self.frame.place(relx=0.5, rely=0.5, anchor="center")
-        
-        ctk.CTkLabel(self.frame, text="Crear Cuenta", font=ctk.CTkFont(size=24, weight="bold")).pack(pady=20)
+        self.card.pack_propagate(False)
+        self.card.configure(height=720) # Un poco más alto para que quepa todo holgado
+
+        # --- BOTÓN VOLVER (Esquina superior izquierda de la tarjeta) ---
+        btn_back_icon = ctk.CTkButton(self.card, text="← Volver", 
+                                      width=70, height=30,
+                                      fg_color="transparent",
+                                      text_color="gray",
+                                      hover_color=("#f1f5f9", "#1e293b"),
+                                      command=lambda: controller.switch_view("login"))
+        btn_back_icon.place(x=20, y=20) # Posición absoluta dentro de la tarjeta
+
+        # --- Cabecera ---
+        try:
+            logo = controller.get_logo_image()
+            if logo:
+                logo_lbl = ctk.CTkLabel(self.card, image=logo, text="")
+                logo_lbl.pack(pady=(50, 10))
+            else:
+                raise Exception
+        except:
+            ctk.CTkLabel(self.card, text="MOVAL", 
+                        font=ctk.CTkFont(size=40, weight="bold"),
+                        text_color=("#1e293b", "#f8fafc")).pack(pady=(50, 5))
+
+        ctk.CTkLabel(self.card, text="Crea tu cuenta ahora", 
+                    font=ctk.CTkFont(size=15),
+                    text_color="gray").pack(pady=(0, 15))
+
+        # --- Formulario ---
+        form_container = ctk.CTkFrame(self.card, fg_color="transparent")
+        form_container.pack(fill="x", padx=60)
+
+        ctk.CTkLabel(form_container, text="Registro de Usuario", 
+                    font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(0, 15))
 
         self.inputs = {}
-        for k, ph in [("dni", "DNI"), ("nombre", "Nombre"), ("apellidos", "Apellidos"), ("email", "Email")]:
-            inp = ctk.CTkEntry(self.frame, placeholder_text=ph, width=250)
-            inp.pack(pady=5)
+        campos = [("dni", "DNI"), ("nombre", "Nombre"), ("apellidos", "Apellidos"), ("email", "Email")]
+        
+        for k, ph in campos:
+            inp = ctk.CTkEntry(form_container, placeholder_text=ph, height=45, corner_radius=12)
+            inp.pack(fill="x", pady=6)
             self.inputs[k] = inp
 
-        self.pass_inp = ctk.CTkEntry(self.frame, placeholder_text="Contraseña", show="*", width=250)
-        self.pass_inp.pack(pady=10)
+        self.pass_inp = ctk.CTkEntry(form_container, placeholder_text="Contraseña", 
+                                    show="*", height=45, corner_radius=12)
+        self.pass_inp.pack(fill="x", pady=6)
 
-        btn_reg = ctk.CTkButton(self.frame, text="REGISTRARSE", command=self.do_register, width=250, font=ctk.CTkFont(weight="bold"))
-        btn_reg.pack(pady=20)
+        # Botón REGISTRARSE
+        btn_reg = ctk.CTkButton(form_container, text="REGISTRARSE", 
+                                command=self.do_register, 
+                                corner_radius=12, height=50,
+                                font=ctk.CTkFont(size=15, weight="bold"),
+                                fg_color="#3b82f6", hover_color="#2563eb")
+        btn_reg.pack(fill="x", pady=(20, 10))
 
-        # Botón de retroceso al Login
-        btn_back = ctk.CTkButton(self.frame, text="VOLVER AL LOGIN", 
-                                 fg_color="transparent", 
-                                 text_color="#64748b",
-                                 border_width=1,
-                                 border_color="#cbd5e1",
-                                 width=250,
-                                 command=lambda: controller.switch_view("login"))
-        btn_back.pack(pady=(0, 20))
+        # --- ENLACE INFERIOR (Segunda opción para volver) ---
+        btn_login_link = ctk.CTkButton(self.card, text="¿Ya tienes cuenta? Inicia sesión",
+                               fg_color="transparent",
+                               text_color=("#3b82f6", "#60a5fa"),
+                               hover_color=None,
+                               font=ctk.CTkFont(size=13, weight="bold", underline=True),
+                               command=lambda: controller.switch_view("login"))
+        btn_login_link.pack(side="bottom", pady=30)
 
     def do_register(self):
-        data = {k: v.get() for k, v in self.inputs.items()}
-        data["password"] = self.pass_inp.get()
-        self.controller.register(data)
+        """Recolecta datos del formulario y llama al controller.register."""
+        try:
+            data = {k: v.get() for k, v in self.inputs.items()}
+            data["password"] = self.pass_inp.get()
+            self.controller.register(data)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
 
 # ==========================================
 # ADMIN
