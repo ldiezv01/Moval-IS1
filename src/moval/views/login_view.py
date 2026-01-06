@@ -47,12 +47,10 @@ class LoginView(BaseView):
         self.email_entry = ctk.CTkEntry(form_container, placeholder_text="Correo electrónico",
                                     height=50, corner_radius=12)
         self.email_entry.pack(fill="x", pady=10)
-        self.email_entry.insert(0, "admin@moval.com")
 
         self.pass_entry = ctk.CTkEntry(form_container, placeholder_text="Contraseña", 
                                     show="*", height=50, corner_radius=12)
         self.pass_entry.pack(fill="x", pady=10)
-        self.pass_entry.insert(0, "1234")
 
         # Botón ENTRAR
         btn_login = ctk.CTkButton(form_container, text="ENTRAR", 

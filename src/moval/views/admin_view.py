@@ -2,6 +2,7 @@ import customtkinter as ctk
 from moval.views.base_view import BaseView
 from tkinter import messagebox, simpledialog, ttk
 from moval.views.shipment_dialog import ShipmentDialog
+from moval.views.create_shipment_dialog import CreateShipmentDialog
 
 class AdminView(BaseView):
     def __init__(self, parent, controller):
@@ -35,6 +36,8 @@ class AdminView(BaseView):
         # --- 1. REGISTRADOS (Controles de Asignación) ---
         ctrl_reg = ctk.CTkFrame(self.tab_reg, fg_color="transparent")
         ctrl_reg.pack(fill="x", pady=5)
+        
+        ctk.CTkButton(ctrl_reg, text="Crear Paquete", width=120, fg_color="#10b981", hover_color="#059669", command=self.open_create_dialog).pack(side="left", padx=5)
         
         ctk.CTkLabel(ctrl_reg, text="Asignar a:").pack(side="left", padx=5)
         self.courier_combo = ctk.CTkComboBox(ctrl_reg, width=200, values=[])
@@ -78,6 +81,9 @@ class AdminView(BaseView):
         ctk.CTkButton(ctrl_inc, text="Actualizar", width=100, fg_color="#64748b", command=self.refresh_data).pack(side="right", padx=5)
         
         self.tree_inc = self.create_tree(self.tab_inc, ["ID", "Código", "Destino", "Estado", "Repartidor"])
+
+    def open_create_dialog(self):
+        CreateShipmentDialog(self, self.controller, on_success_callback=self.refresh_data)
 
     def get_active_tree(self):
         tab = self.shipment_tabview.get()

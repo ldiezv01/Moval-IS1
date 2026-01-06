@@ -34,6 +34,8 @@ from moval.usecases.get_courier_profile import GetCourierProfile
 from moval.services.route_service import RouteService
 from moval.usecases.generate_delivery_route import GenerateDeliveryRoute
 from moval.usecases.pop_next_delivery_notification import PopNextDeliveryNotification
+from moval.usecases.create_shipment import CreateShipment
+from moval.services.geocoding_service import GeocodingService
 
 from moval.views import LoginView, RegisterView, AdminView, CourierView, CustomerView
 
@@ -67,11 +69,13 @@ class MovalApp(ctk.CTk):
         self.clock = Clock()
         self.hasher = PasswordHasher()
         self.route_service = RouteService()
+        self.geocoding_service = GeocodingService()
 
         # 2. Casos de Uso
         self.uc_login = Login(self.user_repo, self.session_repo, self.hasher)
         self.uc_register = RegisterUser(self.user_repo, self.hasher)
         self.uc_update_profile = UpdateUserData(self.user_repo)
+        self.uc_create_shipment = CreateShipment(self.shipment_repo, self.user_repo, self.geocoding_service)
         self.uc_list_all = ListShipments(self.shipment_repo)
         self.uc_list_couriers = ListAvailableCouriers(self.courier_repo)
         self.uc_assign = AssignShipments(self.shipment_repo, self.courier_repo)
@@ -202,6 +206,16 @@ class MovalApp(ctk.CTk):
             return self.courier_repo.list_all_with_workday_info()
         except:
             return []
+
+    def get_all_customers(self):
+        try:
+            return self.user_repo.list_by_role('CUSTOMER')
+        except:
+            return []
+
+    def create_new_shipment(self, data):
+        # Lanza excepción si falla, la vista maneja el error
+        self.uc_create_shipment.execute(self.current_user, data)
 
     def assign_shipments(self, sids, cid):
         try: self.uc_assign.execute(self.current_user, sids, cid)

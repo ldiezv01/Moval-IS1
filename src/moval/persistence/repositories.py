@@ -71,6 +71,14 @@ class UserRepo(BaseSQLiteRepo):
             )
             return cursor.lastrowid
 
+    def list_by_role(self, role: str) -> List[dict]:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT id, dni, nombre, apellidos, email, rol as role FROM Usuario WHERE rol = ?",
+                (role,)
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
 class SessionRepo:
     def create_session(self, user_id: int) -> str:
         # Implementación simple de token por ahora
@@ -124,6 +132,28 @@ class ShipmentRepo(BaseSQLiteRepo):
                     "UPDATE Paquete SET estado = ? WHERE id = ?",
                     (status.value, shipment_id)
                 )
+
+    def create(self, shipment_data: dict) -> int:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO Paquete (
+                    codigo_seguimiento, descripcion, peso, direccion_origen, direccion_destino, 
+                    latitud, longitud, id_cliente, id_mensajero, estado, fecha_entrega_real
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'REGISTRADO', NULL)
+                """,
+                (
+                    shipment_data['codigo_seguimiento'],
+                    shipment_data['descripcion'],
+                    shipment_data['peso'],
+                    shipment_data['direccion_origen'],
+                    shipment_data['direccion_destino'],
+                    shipment_data['latitud'],
+                    shipment_data['longitud'],
+                    shipment_data['id_cliente']
+                )
+            )
+            return cursor.lastrowid
 
     def create_copy(self, original_shipment: dict) -> int:
         with self._get_connection() as conn:
