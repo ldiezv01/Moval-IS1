@@ -1,4 +1,5 @@
 import customtkinter as ctk
+from tkinter import messagebox, simpledialog, ttk
 from moval.views.base_view import BaseView
 
 class CustomerView(BaseView):
@@ -28,6 +29,8 @@ class CustomerView(BaseView):
 
         for s in shipments:
             self.create_shipment_card(s)
+            
+        self._show_pending_delivery_notifications()
 
     def create_shipment_card(self, shipment):
         card = ctk.CTkFrame(self.scroll_frame, fg_color=("#ffffff", "#334155"), border_width=1, border_color="#cbd5e1")
@@ -119,3 +122,75 @@ class CustomerView(BaseView):
             ("Actualizar", lambda: self.refresh_data()),
             ("Ver Ayuda", lambda: self.open_help()),
         ]
+        
+    def _show_pending_delivery_notifications(self):
+        """
+        Llama repetidamente a controller.pop_next_delivery_notification()
+        y muestra un messagebox para cada uno (uno a la vez).
+        """
+        # Sólo si hay user y es CUSTOMER
+        user = getattr(self.controller, "current_user", None)
+        if not user or user.get("role") != "CUSTOMER":
+            return
+
+        while True:
+            notif = self.controller.pop_next_delivery_notification()
+            if not notif:
+                break
+
+            # Construye el mensaje según los campos reales
+            code = notif.get("codigo_seguimiento") or notif.get("codigo") or notif.get("id")
+            desc = notif.get("descripcion") or ""
+            delivered_at = notif.get("delivered_at") or notif.get("fecha_entrega_real") or ""
+
+            msg = f"Tu pedido {code} ha sido entregado.\n\n{desc}"
+            if delivered_at:
+                msg += f"\n\nFecha entrega: {delivered_at}"
+
+            # messagebox.showinfo es bloqueante (hasta que el usuario lo cierre),
+            # eso produce el efecto "una notificación tras otra".
+            try:
+                messagebox.showinfo("Pedido entregado", msg)
+            except Exception:
+                # entornos sin GUI o errores: seguir sin romper
+                pass
+            
+    def _show_pending_delivery_notifications(self):
+        """
+        Muestra popups uno a uno mediante messagebox.showinfo(),
+        solicitando el siguiente paquete entregado que aún no hemos mostrado
+        (usa el helper en MovalApp pop_next_delivery_notification_inmemory()).
+        """
+        # Comprobaciones rápidas
+        user = getattr(self.controller, "current_user", None)
+        if not user or user.get("role") != "CUSTOMER":
+            return
+
+        while True:
+            notif = None
+            try:
+                notif = self.controller.pop_next_delivery_notification_inmemory()
+            except Exception as e:
+                print("DEBUG notify error:", e)
+                break
+
+            if not notif:
+                break
+
+            code = notif.get("codigo_seguimiento") or notif.get("codigo") or str(notif.get("id", "?"))
+            desc = notif.get("descripcion") or ""
+            delivered_at = notif.get("fecha_entrega_real") or notif.get("delivered_at") or ""
+
+            msg = f"Tu pedido {code} ha sido entregado."
+            if desc:
+                msg += f"\n\n{desc}"
+            if delivered_at:
+                msg += f"\n\nFecha entrega: {delivered_at}"
+
+            try:
+                # showinfo bloquea la ejecución hasta que el usuario pulsa OK,
+                # por eso cada notificación se mostrará una tras otra.
+                messagebox.showinfo("Pedido entregado", msg)
+            except Exception as e:
+                print("DEBUG messagebox error:", e)
+                break

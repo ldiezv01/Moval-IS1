@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from tkinter import messagebox
+from tkinter import messagebox, simpledialog, ttk
 
 class ProfileDialog(ctk.CTkToplevel):
     def __init__(self, parent_view, controller):

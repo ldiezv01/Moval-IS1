@@ -1,6 +1,6 @@
 # moval/views/base_view.py
 import customtkinter as ctk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import messagebox, simpledialog, ttk
 
 
 class BaseView(ctk.CTkFrame):

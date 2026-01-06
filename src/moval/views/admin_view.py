@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from moval.views.base_view import BaseView
-import tkinter.ttk as ttk
+from tkinter import messagebox, simpledialog, ttk
 from moval.views.shipment_dialog import ShipmentDialog
 
 class AdminView(BaseView):

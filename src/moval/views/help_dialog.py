@@ -1,5 +1,6 @@
 import customtkinter as ctk
 import tkinter as tk
+from tkinter import messagebox, simpledialog, ttk
 
 class HelpDialog(ctk.CTkToplevel):
     def __init__(self, parent_view, help_text: str):

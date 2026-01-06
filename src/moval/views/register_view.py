@@ -1,6 +1,6 @@
 # src/moval/app/views/register_view.py
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog, ttk
 from .base_view import BaseView
 
 class RegisterView(BaseView):

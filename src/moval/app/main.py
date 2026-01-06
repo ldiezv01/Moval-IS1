@@ -33,6 +33,7 @@ from moval.usecases.update_user_data import UpdateUserData
 from moval.usecases.get_courier_profile import GetCourierProfile
 from moval.services.route_service import RouteService
 from moval.usecases.generate_delivery_route import GenerateDeliveryRoute
+from moval.usecases.pop_next_delivery_notification import PopNextDeliveryNotification
 
 from moval.views import LoginView, RegisterView, AdminView, CourierView, CustomerView
 
@@ -87,9 +88,11 @@ class MovalApp(ctk.CTk):
         self.uc_rate = RateDelivery(self.shipment_repo, self.rating_repo)
         self.uc_courier_profile = GetCourierProfile(self.courier_repo, self.rating_repo, self.shipment_repo)
         self.uc_route = GenerateDeliveryRoute(self.shipment_repo, self.route_service, self.workday_repo)
+        self.uc_pop_notification = PopNextDeliveryNotification(self.shipment_repo, self.clock)
 
         # 3. Estado
         self.current_user = None
+        self._shown_notifications = {}
         
         # 4. Contenedor de Vistas
         self.container = ctk.CTkFrame(self)
@@ -331,6 +334,58 @@ class MovalApp(ctk.CTk):
 
     def get_logo_image(self):
         return getattr(self, "_logo_image", None)
+    
+    def pop_next_delivery_notification(self):
+        """Devuelve el siguiente envío (y lo marca como notificado) para el usuario actual."""
+        try:
+            if not self.current_user:
+                return None
+            return self.uc_pop_notification.execute(self.current_user)
+        except Exception as e:
+            # opcionalmente registrar/loggear
+            return None
+        
+    def pop_next_delivery_notification_inmemory(self):
+        """
+        Devuelve el siguiente paquete ENTREGADO para el current_user que
+        todavía no se le ha mostrado en esta sesión (y lo marca como 'mostrado'
+        en memoria). Retorna dict del paquete o None si no hay ninguno.
+        """
+        if not self.current_user or "id" not in self.current_user:
+            return None
+
+        if self.current_user.get("role") != "CUSTOMER":
+            return None
+
+        uid = self.current_user["id"]
+        shown = self._shown_notifications.setdefault(uid, set())
+
+        try:
+            shipments = self.get_my_shipments()  # ya devuelve todos los paquetes del usuario
+        except Exception as e:
+            print("DEBUG: error obteniendo envíos para notificaciones:", e)
+            return None
+
+        # Ordenamos por fecha de entrega para mostrar primero los más antiguos
+        def sort_key(s):
+            v = s.get("fecha_entrega_real") or s.get("delivered_at") or ""
+            return v
+
+        for s in sorted(shipments, key=sort_key):
+            # tu proyecto usa 'estado' en español (ENTREGADO) — soportamos ambos por seguridad
+            estado = s.get("estado") or s.get("status") or ""
+            if estado.upper() in ("ENTREGADO", "DELIVERED"):
+                sid = s.get("id")
+                if sid is None:
+                    # si no hay id, ignorar
+                    continue
+                if sid in shown:
+                    continue
+                # marcar como mostrado en memoria
+                shown.add(sid)
+                return s
+
+        return None
 
 if __name__ == "__main__":
     app = MovalApp()

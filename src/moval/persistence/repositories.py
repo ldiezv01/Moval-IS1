@@ -175,6 +175,27 @@ class ShipmentRepo(BaseSQLiteRepo):
 
     def count_by_courier(self, courier_id: int, filters: dict | None = None) -> int:
         return len(self.list_by_courier(courier_id, filters))
+    
+    def find_next_delivered_unnotified_for_customer(self, customer_id):
+        """
+        Retorna un dict con la fila del primer envío DELIVERED para customer_id
+        y delivery_notified IS NULL or 0. Orden por delivered_at asc (el más antiguo primero).
+        """
+        cur = self._conn.cursor()
+        # Ajusta los nombres de columnas: 'customer_id' y 'status' son los usados en los usecases.
+        # Si tu proyecto usa 'id_cliente' o 'estado' cambia aquí.
+        sql = """
+        SELECT * FROM shipments
+        WHERE customer_id = ? AND status = 'DELIVERED'
+        AND (delivery_notified IS NULL OR delivery_notified = 0)
+        ORDER BY delivered_at ASC
+        LIMIT 1
+        """
+        cur.execute(sql, (customer_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        return self._row_to_dict(row)
 
 
 class CourierRepo(BaseSQLiteRepo):
