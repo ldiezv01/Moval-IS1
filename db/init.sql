@@ -37,6 +37,7 @@ CREATE TABLE Paquete (
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_estimada_entrega DATETIME,
     fecha_entrega_real DATETIME,
+    notificado_cliente INTEGER DEFAULT 0,
     
     -- Relaciones
     id_cliente INTEGER NOT NULL,      -- Quién envía/pide el paquete
