@@ -2,6 +2,7 @@ import customtkinter as ctk
 import sys
 import os
 from tkinter import messagebox
+import tkinter.ttk as ttk
 
 # Path Fix
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src')))
@@ -33,7 +34,7 @@ from moval.usecases.get_courier_profile import GetCourierProfile
 from moval.services.route_service import RouteService
 from moval.usecases.generate_delivery_route import GenerateDeliveryRoute
 
-from moval.app.views import LoginView, RegisterView, AdminView, CourierView, CustomerView
+from moval.views import LoginView, RegisterView, AdminView, CourierView, CustomerView
 
 try:
     from PIL import Image, ImageTk
