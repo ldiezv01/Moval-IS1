@@ -214,7 +214,10 @@ class AdminView(BaseView):
         ratings = self.controller.get_all_ratings()
         self.tree_rat.delete(*self.tree_rat.get_children())
         for r in ratings:
-            self.tree_rat.insert("", "end", values=(r['fecha'], r['autor'], r['mensajero'] or "", r['puntuacion'], r['comentario']))
+            score = r['puntuacion']
+            stars_str = "★" * int(score) + "☆" * (5 - int(score))
+            score_display = f"{stars_str} ({score})"
+            self.tree_rat.insert("", "end", values=(r['fecha'], r['autor'], r['mensajero'] or "", score_display, r['comentario']))
 
         # Reporte Repartidores
         report = self.controller.get_all_couriers_report()
@@ -232,13 +235,20 @@ class AdminView(BaseView):
                 status_text = "INACTIVO"
                 salida_text = "---"
 
-            media = f"{c['media']:.1f}" if c['media'] else "N/A"
+            media_val = c['media']
+            if media_val is not None and media_val > 0:
+                 stars_count = int(round(media_val))
+                 stars_str = "★" * stars_count + "☆" * (5 - stars_count)
+                 media_display = f"{stars_str} ({media_val:.1f})"
+            else:
+                 media_display = "☆☆☆☆☆ (N/A)"
+
             self.tree_couriers.insert("", "end", values=(
                 f"{c['nombre']} {c['apellidos']}",
                 status_text,
                 c.get('fecha_inicio') or "---",
                 salida_text,
-                media
+                media_display
             ))
 
     def assign(self):

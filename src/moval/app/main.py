@@ -84,7 +84,7 @@ class MovalApp(ctk.CTk):
         self.uc_deliver = DeliverShipment(self.shipment_repo, self.clock)
         self.uc_incident = ReportIncident(self.shipment_repo, self.incident_repo, self.clock)
         self.uc_details = GetShipmentDetails(self.shipment_repo, self.incident_repo, self.user_repo)
-        self.uc_eta = CalculateETA(self.shipment_repo, self.route_service, self.clock)
+        self.uc_eta = CalculateETA(self.shipment_repo, self.route_service, self.clock, self.workday_repo)
         self.uc_rate = RateDelivery(self.shipment_repo, self.rating_repo)
         self.uc_courier_profile = GetCourierProfile(self.courier_repo, self.rating_repo, self.shipment_repo)
         self.uc_route = GenerateDeliveryRoute(self.shipment_repo, self.route_service, self.workday_repo)
@@ -310,17 +310,12 @@ class MovalApp(ctk.CTk):
                     # CTkImage evita la advertencia de HighDPI al pasar a CTkLabel
                     self._logo_image = ctk.CTkImage(light_image=logo_pil, size=(LOGO_SIZE, LOGO_SIZE))
                 except Exception:
-                    # fallback sencillo: convertir a PhotoImage si CTkImage falla
-                    try:
-                        fallback = logo_pil
-                        self._logo_image = ImageTk.PhotoImage(fallback)
-                    except Exception:
-                        self._logo_image = None
+                    self._logo_image = None
             else:
                 # fallback sin Pillow (no redimensiona)
                 import tkinter as _tk
                 self._app_icon = _tk.PhotoImage(file=icon_path)
-                self._logo_image = self._app_icon
+                self._logo_image = None # No usar PhotoImage para CTkLabel
                 try:
                     self.iconphoto(False, self._app_icon)
                 except Exception:
@@ -337,14 +332,17 @@ class MovalApp(ctk.CTk):
     
     def pop_next_delivery_notification(self):
         """Devuelve el siguiente envío (y lo marca como notificado) para el usuario actual."""
-        try:
-            if not self.current_user:
-                return None
-            return self.uc_pop_notification.execute(self.current_user)
-        except Exception as e:
-            # opcionalmente registrar/loggear
-            return None
+        # Deprecated by Notification Center
+        return None
         
+    def get_customer_notifications(self):
+        if not self.current_user: return []
+        return self.shipment_repo.get_customer_notifications(self.current_user['id'])
+
+    def mark_notifications_read(self):
+        if self.current_user:
+            self.shipment_repo.mark_notifications_as_read(self.current_user['id'])
+
     def pop_next_delivery_notification_inmemory(self):
         """
         Devuelve el siguiente paquete ENTREGADO para el current_user que

@@ -32,6 +32,8 @@ CREATE TABLE Paquete (
     latitud REAL, -- Coordenada de destino
     longitud REAL, -- Coordenada de destino
     estado TEXT DEFAULT 'REGISTRADO', -- 'REGISTRADO', 'ASIGNADO', 'EN_REPARTO', 'ENTREGADO', 'DEVUELTO', 'INCIDENCIA'
+    ultima_incidencia TEXT,
+    fecha_incidencia DATETIME,
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_estimada_entrega DATETIME,
     fecha_entrega_real DATETIME,

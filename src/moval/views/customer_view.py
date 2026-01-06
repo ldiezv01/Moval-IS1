@@ -1,39 +1,92 @@
 import customtkinter as ctk
 from tkinter import messagebox, simpledialog, ttk
 from moval.views.base_view import BaseView
+from moval.views.rating_dialog import VentanaValoracion
+from moval.views.notification_dialog import NotificationDialog
 
 class CustomerView(BaseView):
     def __init__(self, parent, controller):
         super().__init__(parent, controller)
         self.create_header("Mis Pedidos")
 
-        # Scrollable container for cards
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        # Tabs
+        self.tabview = ctk.CTkTabview(self)
+        self.tabview.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        
+        self.tab_active = self.tabview.add("En Curso")
+        self.tab_incidents = self.tabview.add("Incidencias")
+        self.tab_delivered = self.tabview.add("Entregados")
 
-        # Bottom Action Bar (Just Refresh)
+        # Scrollable frames for each tab
+        self.scroll_active = ctk.CTkScrollableFrame(self.tab_active, fg_color="transparent")
+        self.scroll_active.pack(fill="both", expand=True)
+        
+        self.scroll_incidents = ctk.CTkScrollableFrame(self.tab_incidents, fg_color="transparent")
+        self.scroll_incidents.pack(fill="both", expand=True)
+
+        self.scroll_delivered = ctk.CTkScrollableFrame(self.tab_delivered, fg_color="transparent")
+        self.scroll_delivered.pack(fill="both", expand=True)
+
+        # Bottom Action Bar
         act_f = ctk.CTkFrame(self, fg_color="transparent")
         act_f.pack(fill="x", padx=20, pady=10)
+        
+        # Bell Button (Left aligned)
+        self.btn_bell = ctk.CTkButton(act_f, text="🔔", width=50, command=self.open_notifications)
+        self.btn_bell.pack(side="left")
+        
         ctk.CTkButton(act_f, text="Actualizar Lista", command=self.refresh_data).pack(side="right")
 
     def refresh_data(self):
         shipments = self.controller.get_my_shipments()
+        self.update_bell_status()
         
-        # Clear
-        for w in self.scroll_frame.winfo_children():
-            w.destroy()
+        # Clear all
+        for f in [self.scroll_active, self.scroll_incidents, self.scroll_delivered]:
+            for w in f.winfo_children():
+                w.destroy()
 
         if not shipments:
-             ctk.CTkLabel(self.scroll_frame, text="No tienes pedidos activos.", font=ctk.CTkFont(size=16)).pack(pady=20)
+             ctk.CTkLabel(self.scroll_active, text="No tienes pedidos activos.", font=ctk.CTkFont(size=16)).pack(pady=20)
              return
 
         for s in shipments:
-            self.create_shipment_card(s)
+            st = s['estado']
+            target_frame = self.scroll_active
             
-        self._show_pending_delivery_notifications()
+            if st == 'ENTREGADO':
+                target_frame = self.scroll_delivered
+            elif st == 'INCIDENCIA':
+                target_frame = self.scroll_incidents
+            elif st in ['REGISTRADO', 'ASIGNADO', 'EN_REPARTO']:
+                target_frame = self.scroll_active
+            else:
+                # Fallback
+                target_frame = self.scroll_active
 
-    def create_shipment_card(self, shipment):
-        card = ctk.CTkFrame(self.scroll_frame, fg_color=("#ffffff", "#334155"), border_width=1, border_color="#cbd5e1")
+            self.create_shipment_card(s, target_frame)
+            
+    def update_bell_status(self):
+        notifs = self.controller.get_customer_notifications()
+        # Count unread (notificado_cliente is 0 or NULL)
+        unread = sum(1 for n in notifs if (n.get('notificado_cliente', 0) == 0))
+        
+        if unread > 0:
+            self.btn_bell.configure(text=f"🔔 {unread}", fg_color="#ef4444") # Red
+        else:
+            self.btn_bell.configure(text="🔔", fg_color="#3b82f6") # Default Blue
+
+    def open_notifications(self):
+        notifs = self.controller.get_customer_notifications()
+        
+        def on_close():
+            self.controller.mark_notifications_read()
+            self.update_bell_status()
+            
+        NotificationDialog(self, notifs, on_close_callback=on_close)
+
+    def create_shipment_card(self, shipment, parent_frame):
+        card = ctk.CTkFrame(parent_frame, fg_color=("#ffffff", "#334155"), border_width=1, border_color="#cbd5e1")
         card.pack(fill="x", pady=10, padx=5)
 
         # Header: Code + Status
@@ -74,9 +127,13 @@ class CustomerView(BaseView):
 
     def details(self, sid):
         det = self.controller.get_shipment_details(sid)
-        eta = self.controller.calculate_eta(sid)
         
-        eta_str = eta.get("texto_mostrar", f"{eta.get('eta_minutos', '?')} min")
+        # Lógica de ETA modificada para Incidencias
+        if det['estado'] == 'INCIDENCIA':
+            eta_str = "INCIDENCIA: Su pedido será reasignado."
+        else:
+            eta = self.controller.calculate_eta(sid)
+            eta_str = eta.get("texto_mostrar", f"{eta.get('eta_minutos', '?')} min")
         
         msg = f"--- DETALLES ---\n\n"
         msg += f"Código: {det.get('codigo_seguimiento')}\n"
@@ -85,16 +142,24 @@ class CustomerView(BaseView):
         msg += f"Destino: {det['direccion_destino']}\n"
         msg += f"\nEstado: {det['estado']}\n"
         
-        if det['estado'] not in ['ENTREGADO', 'CANCELADO']:
+        # Mostrar ETA solo si NO es entregado, cancelado O incidencia
+        if det['estado'] not in ['ENTREGADO', 'CANCELADO', 'INCIDENCIA']:
              msg += f"ETA Estimado: {eta_str}\n"
+        elif det['estado'] == 'INCIDENCIA':
+             msg += f"\nNOTA: {eta_str}\n"
+
+        if det.get("ultima_incidencia"):
+             msg += f"\nMotivo Incidencia: {det.get('ultima_incidencia')}\n"
 
         messagebox.showinfo("Detalles del Pedido", msg)
 
     def rate(self, sid):
-        score = tk.simpledialog.askinteger("Valorar", "Puntuación (1-5):", minvalue=1, maxvalue=5)
-        if score:
-            com = tk.simpledialog.askstring("Valorar", "Comentario (Opcional):")
-            self.controller.rate_delivery(sid, score, com)
+        def on_submit(score, comment):
+            if score > 0:
+                self.controller.rate_delivery(sid, score, comment)
+                self.refresh_data()
+        
+        VentanaValoracion(self, callback=on_submit)
 
     def view_courier(self, sid):
         det = self.controller.get_shipment_details(sid)
@@ -122,75 +187,3 @@ class CustomerView(BaseView):
             ("Actualizar", lambda: self.refresh_data()),
             ("Ver Ayuda", lambda: self.open_help()),
         ]
-        
-    def _show_pending_delivery_notifications(self):
-        """
-        Llama repetidamente a controller.pop_next_delivery_notification()
-        y muestra un messagebox para cada uno (uno a la vez).
-        """
-        # Sólo si hay user y es CUSTOMER
-        user = getattr(self.controller, "current_user", None)
-        if not user or user.get("role") != "CUSTOMER":
-            return
-
-        while True:
-            notif = self.controller.pop_next_delivery_notification()
-            if not notif:
-                break
-
-            # Construye el mensaje según los campos reales
-            code = notif.get("codigo_seguimiento") or notif.get("codigo") or notif.get("id")
-            desc = notif.get("descripcion") or ""
-            delivered_at = notif.get("delivered_at") or notif.get("fecha_entrega_real") or ""
-
-            msg = f"Tu pedido {code} ha sido entregado.\n\n{desc}"
-            if delivered_at:
-                msg += f"\n\nFecha entrega: {delivered_at}"
-
-            # messagebox.showinfo es bloqueante (hasta que el usuario lo cierre),
-            # eso produce el efecto "una notificación tras otra".
-            try:
-                messagebox.showinfo("Pedido entregado", msg)
-            except Exception:
-                # entornos sin GUI o errores: seguir sin romper
-                pass
-            
-    def _show_pending_delivery_notifications(self):
-        """
-        Muestra popups uno a uno mediante messagebox.showinfo(),
-        solicitando el siguiente paquete entregado que aún no hemos mostrado
-        (usa el helper en MovalApp pop_next_delivery_notification_inmemory()).
-        """
-        # Comprobaciones rápidas
-        user = getattr(self.controller, "current_user", None)
-        if not user or user.get("role") != "CUSTOMER":
-            return
-
-        while True:
-            notif = None
-            try:
-                notif = self.controller.pop_next_delivery_notification_inmemory()
-            except Exception as e:
-                print("DEBUG notify error:", e)
-                break
-
-            if not notif:
-                break
-
-            code = notif.get("codigo_seguimiento") or notif.get("codigo") or str(notif.get("id", "?"))
-            desc = notif.get("descripcion") or ""
-            delivered_at = notif.get("fecha_entrega_real") or notif.get("delivered_at") or ""
-
-            msg = f"Tu pedido {code} ha sido entregado."
-            if desc:
-                msg += f"\n\n{desc}"
-            if delivered_at:
-                msg += f"\n\nFecha entrega: {delivered_at}"
-
-            try:
-                # showinfo bloquea la ejecución hasta que el usuario pulsa OK,
-                # por eso cada notificación se mostrará una tras otra.
-                messagebox.showinfo("Pedido entregado", msg)
-            except Exception as e:
-                print("DEBUG messagebox error:", e)
-                break

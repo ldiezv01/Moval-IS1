@@ -7,3 +7,6 @@ from .profile_dialog import ProfileDialog
 from .help_dialog import HelpDialog
 from .options_dialog import OptionsDialog
 from .shipment_dialog import ShipmentDialog
+from .rating_dialog import VentanaValoracion
+from .incident_dialog import VentanaIncidencia
+from .notification_dialog import NotificationDialog

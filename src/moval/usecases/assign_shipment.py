@@ -47,9 +47,14 @@ class AssignShipments:
             if not shipment:
                 raise NotFoundError(f"Paquete {shipment_id} no encontrado")
 
-            # Solo se pueden asignar paquetes que están en estado REGISTRADO (PENDING)
-            if shipment["estado"] != ShipmentStatus.PENDING.value:
-                raise ConflictError(f"El paquete {shipment_id} no está en estado pendiente")
+            # Se pueden asignar paquetes REGISTRADOS o en INCIDENCIA
+            if shipment["estado"] not in [ShipmentStatus.PENDING.value, ShipmentStatus.INCIDENT.value]:
+                raise ConflictError(f"El paquete {shipment_id} no está disponible para asignación (Estado: {shipment['estado']})")
+
+            # Resetear incidencias previas al reasignar
+            if shipment["estado"] == ShipmentStatus.INCIDENT.value:
+                shipment["ultima_incidencia"] = None
+                shipment["fecha_incidencia"] = None
 
             shipments.append(shipment)
 

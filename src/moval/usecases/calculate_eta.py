@@ -6,10 +6,11 @@ class CalculateETA:
     """
     Calcula el ETA usando el RouteService para obtener tiempos reales de ruta.
     """
-    def __init__(self, shipment_repo, route_service, clock):
+    def __init__(self, shipment_repo, route_service, clock, workday_repo):
         self.shipment_repo = shipment_repo
         self.route_service = route_service
         self.clock = clock
+        self.workday_repo = workday_repo
         self.SERVICE_TIME_PER_STOP_MIN = 10 # Tiempo estimado por entrega
 
     def execute(self, actor: dict, shipment_id: int) -> dict:
@@ -44,6 +45,15 @@ class CalculateETA:
 
         # 3. Calculo Real con Ruta
         courier_id = shipment["id_mensajero"]
+        
+        # Verificar si el repartidor tiene jornada activa
+        active_wd = self.workday_repo.get_active_workday(courier_id)
+        if not active_wd:
+             return {
+                 "eta_minutos": None,
+                 "info": "Repartidor inactivo",
+                 "texto_mostrar": "Repartidor en espera"
+             }
         
         # Obtener todos los paquetes activos del mensajero
         all_pkgs = self.shipment_repo.list_by_courier(courier_id)

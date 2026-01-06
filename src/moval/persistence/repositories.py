@@ -93,7 +93,7 @@ class ShipmentRepo(BaseSQLiteRepo):
         with self._get_connection() as conn:
             for sid in shipment_id:
                 conn.execute(
-                    "UPDATE Paquete SET id_mensajero = ?, estado = 'ASIGNADO' WHERE id = ?",
+                    "UPDATE Paquete SET id_mensajero = ?, estado = 'ASIGNADO', ultima_incidencia = NULL, fecha_incidencia = NULL WHERE id = ?",
                     (courier_id, sid)
                 )
 
@@ -177,26 +177,28 @@ class ShipmentRepo(BaseSQLiteRepo):
         return len(self.list_by_courier(courier_id, filters))
     
     def find_next_delivered_unnotified_for_customer(self, customer_id):
-        """
-        Retorna un dict con la fila del primer envío DELIVERED para customer_id
-        y delivery_notified IS NULL or 0. Orden por delivered_at asc (el más antiguo primero).
-        """
-        cur = self._conn.cursor()
-        # Ajusta los nombres de columnas: 'customer_id' y 'status' son los usados en los usecases.
-        # Si tu proyecto usa 'id_cliente' o 'estado' cambia aquí.
-        sql = """
-        SELECT * FROM shipments
-        WHERE customer_id = ? AND status = 'DELIVERED'
-        AND (delivery_notified IS NULL OR delivery_notified = 0)
-        ORDER BY delivered_at ASC
-        LIMIT 1
-        """
-        cur.execute(sql, (customer_id,))
-        row = cur.fetchone()
-        if not row:
-            return None
-        return self._row_to_dict(row)
+        # Deprecated logic, keeping for safety or removing if unused.
+        pass
 
+    def get_customer_notifications(self, customer_id: int) -> List[dict]:
+        """Devuelve paquetes entregados. Incluye flag 'notificado_cliente'."""
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT * FROM Paquete 
+                WHERE id_cliente = ? 
+                  AND estado = 'ENTREGADO'
+                ORDER BY fecha_entrega_real DESC
+                LIMIT 20
+            """, (customer_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def mark_notifications_as_read(self, customer_id: int):
+        with self._get_connection() as conn:
+            conn.execute("""
+                UPDATE Paquete 
+                SET notificado_cliente = 1 
+                WHERE id_cliente = ? AND estado = 'ENTREGADO' AND (notificado_cliente IS NULL OR notificado_cliente = 0)
+            """, (customer_id,))
 
 class CourierRepo(BaseSQLiteRepo):
     def list_available(self) -> List[dict]:

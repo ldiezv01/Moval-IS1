@@ -3,6 +3,7 @@ from tkinter import messagebox, simpledialog, ttk
 import tkintermapview
 from moval.views.base_view import BaseView
 from tkinter import messagebox
+from moval.views.incident_dialog import VentanaIncidencia
 
 class CourierView(BaseView):
     def __init__(self, parent, controller):
@@ -240,8 +241,11 @@ class CourierView(BaseView):
             return
         
         if sid:
-            msg = tk.simpledialog.askstring("Incidencia", "Descripción:")
-            if msg: self.controller.report_incident(sid, msg); self.refresh_data()
+            def on_report(description):
+                self.controller.report_incident(sid, description)
+                self.refresh_data()
+            
+            VentanaIncidencia(self, callback=on_report)
             
     def get_help_text(self):
         return (
