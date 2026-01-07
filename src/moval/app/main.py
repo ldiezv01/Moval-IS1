@@ -62,8 +62,6 @@ class MovalApp(ctk.CTk):
         self._load_icons()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         
-        self.init_db()
-        
         # 1. Repositorios y Servicios
         self.user_repo = UserRepo()
         self.session_repo = SessionRepo()
@@ -127,14 +125,6 @@ class MovalApp(ctk.CTk):
 
         self.switch_view("login")
         self.after(0, lambda: self.apply_ui_scale(self.ui_prefs.get("scale", 1.0)))
-
-    def init_db(self):
-        root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-        db = os.path.join(root, 'db', 'moval.db')
-        if not os.path.exists(db):
-            if root not in sys.path: sys.path.append(root)
-            from db.init_db import init_db
-            init_db()
 
     def switch_view(self, name):
         name_map = {
