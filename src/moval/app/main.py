@@ -3,6 +3,7 @@ import sys
 import os
 from tkinter import messagebox
 import tkinter.ttk as ttk
+import sqlite3
 
 # Path Fix
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src')))
@@ -52,7 +53,12 @@ class MovalApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Moval Logistics System")
-        self.geometry("1100x750")
+        
+        self.base_width = 1100
+        self.base_height = 750
+        self.ui_prefs = {"appearance_mode": ctk.get_appearance_mode(), "theme": "blue", "scale": 1.0}
+
+        
         self._load_icons()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         
@@ -97,6 +103,15 @@ class MovalApp(ctk.CTk):
         # 3. Estado
         self.current_user = None
         self._shown_notifications = {}
+        #self.ui_prefs = {
+            #"theme": "blue",
+            #"short_time": True
+        #}
+        # Aplicar el tema inicial:
+        try:
+            ctk.set_default_color_theme(self.ui_prefs["theme"])
+        except Exception:
+            pass
         
         # 4. Contenedor de Vistas
         self.container = ctk.CTkFrame(self)
@@ -111,6 +126,7 @@ class MovalApp(ctk.CTk):
             frame.grid(row=0, column=0, sticky="nsew")
 
         self.switch_view("login")
+        self.after(0, lambda: self.apply_ui_scale(self.ui_prefs.get("scale", 1.0)))
 
     def init_db(self):
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -130,6 +146,42 @@ class MovalApp(ctk.CTk):
         frame.tkraise()
         if hasattr(frame, "refresh_data") and self.current_user:
             frame.refresh_data()
+            
+    def _center_and_set_geometry(self, width: int, height: int):
+        """Pone la ventana principal con tamaño width x height y la centra en pantalla."""
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        x = max(0, (screen_w - width) // 2)
+        y = max(0, (screen_h - height) // 2)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+
+    def apply_ui_scale(self, scale: float):
+        """
+        Aplica escala a la ventana principal SOLO ajustando su tamaño.
+        No toca otros Toplevel (como el diálogo de opciones).
+        """
+        try:
+            scale = float(scale)
+        except Exception:
+            scale = 1.0
+
+        # Guardar en prefs
+        prefs = getattr(self, "ui_prefs", {}) or {}
+        prefs["scale"] = scale
+        self.ui_prefs = prefs
+
+        # Calcular nuevo tamaño en base a las dimensiones base
+        new_w = max(400, int(round(self.base_width * scale)))
+        new_h = max(300, int(round(self.base_height * scale)))
+
+        # Aplicar y centrar
+        self._center_and_set_geometry(new_w, new_h)
+
+        # Opcional: forzar redibujado ligero
+        try:
+            self.update_idletasks()
+        except Exception:
+            pass
             
     def on_close(self):
         """Handler para la X: confirmar y cerrar la app limpiamente."""
@@ -398,6 +450,20 @@ class MovalApp(ctk.CTk):
                 return s
 
         return None
+    
+    def delete_user(self, user_id: int) -> bool:
+        """Controller wrapper: borra un usuario y devuelve True si se borró."""
+        try:
+            # Llamamos al repo (que ya borra paquetes relacionados)
+            result = self.user_repo.delete(user_id)
+            if result:
+                messagebox.showinfo("Usuario eliminado", "El usuario y sus paquetes relacionados han sido eliminados.")
+            else:
+                messagebox.showwarning("No encontrado", "No se encontró el usuario (no se borró nada).")
+            return result
+        except Exception as e:
+            messagebox.showerror("Error al borrar usuario", str(e))
+            return False
 
 if __name__ == "__main__":
     app = MovalApp()

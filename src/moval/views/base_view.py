@@ -42,7 +42,7 @@ class BaseView(ctk.CTkFrame):
         # Botón Ayuda (?)
         btn_help = ctk.CTkButton(
             header,
-            text="❓",
+            text="?",
             width=40,
             height=32,
             corner_radius=8,

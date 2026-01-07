@@ -78,6 +78,35 @@ class UserRepo(BaseSQLiteRepo):
                 (role,)
             )
             return [dict(row) for row in cursor.fetchall()]
+        
+    def delete(self, user_id: int) -> bool:
+        """
+        Borra el usuario y todos los paquetes relacionados (como cliente o mensajero).
+        Realiza la operación en una transacción. Devuelve True si borró algo.
+        """
+        if not user_id:
+            raise ValueError("user_id required")
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cur = conn.cursor()
+            # Iniciar transacción explícita
+            cur.execute("BEGIN")
+            # 1) Borrar paquetes relacionados (cliente o mensajero)
+            cur.execute(
+                "DELETE FROM Paquete WHERE id_cliente = ? OR id_mensajero = ?",
+                (user_id, user_id)
+            )
+            # 2) Borrar el usuario
+            cur.execute("DELETE FROM Usuario WHERE id = ?", (user_id,))
+            deleted = cur.rowcount  # número de filas afectadas por el último DELETE (Usuario)
+            conn.commit()
+            return deleted > 0
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
 class SessionRepo:
     def create_session(self, user_id: int) -> str:

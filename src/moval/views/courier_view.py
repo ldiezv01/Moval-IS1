@@ -250,16 +250,11 @@ class CourierView(BaseView):
     def get_help_text(self):
         return (
             "Panel del Repartidor:\n\n"
-            "- Pulsar 'Iniciar/Fin' para comenzar o finalizar tu jornada.\n"
-            "- Seleccionar un envío y pulsar 'Entregado' para marcar entrega.\n"
-            "- 'Incidencia' permite reportar problemas en un envío.\n"
-            "- 'Generar Ruta' optimiza tu recorrido y abre un mapa.\n"
+            "- Pulsar 'Iniciar/Finalizar Jornada' para comenzar o finalizar el periodo lectivo.\n"
+            "- Pulsar 'Entregado' en un paquete para marcarlo como entregado.\n"
+            "- Pulsar 'Incidencia' permite reportar problemas en un envío.\n"
+            "- 'Generar Ruta' optimiza tu recorrido y crea una ruta en el mapa.\n"
         )
 
     def get_options(self):
-        # Actions refer to controller methods
-        return [
-            ("Iniciar/Finalizar Jornada", lambda: self.controller.start_workday() if not self.controller.get_active_workday() else self.controller.end_workday()),
-            ("Generar Ruta", lambda: self.generate_route()),
-            ("Actualizar", lambda: self.refresh_data()),
-        ]
+        return []

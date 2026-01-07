@@ -176,14 +176,10 @@ class CustomerView(BaseView):
     def get_help_text(self):
         return (
             "Panel Cliente:\n\n"
-            "- Cada tarjeta representa un pedido.\n"
-            "- Usa 'Detalles / ETA' para ver el tiempo estimado de llegada.\n"
-            "- Si el pedido fue entregado, puedes 'Valorar' el servicio.\n"
+            "- Cada tarjeta representa un pedido. Usa 'Detalles / ETA' para ver su información de utilidad\n"
             "- 'Ver Repartidor' muestra quién te trae el paquete.\n"
+            "- Si el pedido fue entregado, puedes 'Valorar' el servicio en la pestaña 'Entregados'.\n"
         )
 
     def get_options(self):
-        return [
-            ("Actualizar", lambda: self.refresh_data()),
-            ("Ver Ayuda", lambda: self.open_help()),
-        ]
+        return []

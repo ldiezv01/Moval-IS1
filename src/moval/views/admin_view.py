@@ -3,6 +3,7 @@ from moval.views.base_view import BaseView
 from tkinter import messagebox, simpledialog, ttk
 from moval.views.shipment_dialog import ShipmentDialog
 from moval.views.create_shipment_dialog import CreateShipmentDialog
+import sqlite3
 
 class AdminView(BaseView):
     def __init__(self, parent, controller):
@@ -144,12 +145,30 @@ class AdminView(BaseView):
         self.user_info_lbl = ctk.CTkLabel(layout, text="Busque un usuario para gestionar su rol.", font=ctk.CTkFont(slant="italic"))
         self.user_info_lbl.pack(pady=20)
         
+        # Contenedor general para controles de rol (dos filas)
         self.role_frame = ctk.CTkFrame(layout, fg_color="transparent")
-        ctk.CTkLabel(self.role_frame, text="Nuevo Rol:").pack(side="left", padx=5)
-        self.role_combo = ctk.CTkComboBox(self.role_frame, values=["Cliente", "Repartidor", "Administrador"])
+        # NOTA: no lo packeamos aquí para que esté oculto hasta que se encuentre usuario
+        # (será packeado en search_user)
+        
+        # --- fila superior: label + combo + actualizar ---
+        top_row = ctk.CTkFrame(self.role_frame, fg_color="transparent")
+        top_row.pack(pady=(0, 6))
+        ctk.CTkLabel(top_row, text="Nuevo Rol:").pack(side="left", padx=5)
+        self.role_combo = ctk.CTkComboBox(top_row, values=["Cliente", "Repartidor", "Administrador"])
         self.role_combo.pack(side="left", padx=5)
-        self.btn_upd_role = ctk.CTkButton(self.role_frame, text="Actualizar Rol", command=self.update_role)
+        self.btn_upd_role = ctk.CTkButton(top_row, text="Actualizar Rol", command=self.update_role)
         self.btn_upd_role.pack(side="left", padx=5)
+        
+        # --- fila inferior: botón BORRAR (oculto inicialmente) ---
+        bottom_row = ctk.CTkFrame(self.role_frame, fg_color="transparent")
+        bottom_row.pack(pady=(0, 0))
+        self.btn_delete_user = ctk.CTkButton(
+            bottom_row,
+            text="Borrar usuario",
+            fg_color="#ef4444",
+            hover_color="#dc2626",
+            command=self.delete_user
+        )
 
     def setup_ratings(self):
         self.tree_rat = self.create_tree(self.tab_ratings, ["Fecha", "Autor", "Mensajero", "Nota", "Comentario"])
@@ -287,11 +306,56 @@ class AdminView(BaseView):
         if u:
             self.found_user = u
             self.user_info_lbl.configure(text=f"Usuario: {u['nombre']} {u['apellidos']} | Rol Actual: {u['role']}", font=ctk.CTkFont(weight="bold"))
-            self.role_frame.pack(pady=10)
+
+            # Mostrar contenedor de rol (si no está visible). Packear sin anchor => centrado por defecto.
+            try:
+                if not self.role_frame.winfo_ismapped():
+                    self.role_frame.pack(pady=10)
+            except Exception:
+                try:
+                    self.role_frame.pack(pady=10)
+                except:
+                    pass
+
+            # Pre-seleccionar el rol actual en el combo (si mapeable)
+            role_map = {"CUSTOMER": "Cliente", "COURIER": "Repartidor", "ADMIN": "Administrador", "Cliente":"Cliente"}
+            current_role_label = role_map.get(u.get("role"), role_map.get(u.get("rol"), "Cliente"))
+            try:
+                self.role_combo.set(current_role_label)
+            except:
+                pass
+
+            # Mostrar botón borrar dentro de la fila inferior (si no está packeado)
+            try:
+                if not self.btn_delete_user.winfo_ismapped():
+                    # lo empaquetamos con fill="x" para que el botón ocupe la anchura del bottom_row
+                    self.btn_delete_user.pack(fill="x", padx=5, pady=(6, 0))
+            except Exception:
+                try:
+                    self.btn_delete_user.pack(fill="x", padx=5, pady=(6, 0))
+                except:
+                    pass
         else:
             self.user_info_lbl.configure(text="No encontrado.")
-            self.role_frame.pack_forget()
-
+            # ocultar controles de rol
+            try:
+                if self.role_frame.winfo_ismapped():
+                    self.role_frame.pack_forget()
+            except:
+                try:
+                    self.role_frame.pack_forget()
+                except:
+                    pass
+            # ocultar boton borrar (si está)
+            try:
+                if self.btn_delete_user.winfo_ismapped():
+                    self.btn_delete_user.pack_forget()
+            except:
+                try:
+                    self.btn_delete_user.pack_forget()
+                except:
+                    pass
+        
     def update_role(self):
         roles = {"Cliente": "CUSTOMER", "Repartidor": "COURIER", "Administrador": "ADMIN"}
         self.controller.change_user_role(self.found_user['email'], roles[self.role_combo.get()])
@@ -300,13 +364,53 @@ class AdminView(BaseView):
     def get_help_text(self):
         return (
             "Panel de Administración:\n\n"
-            "- 'Asignar' y 'Desasignar' para gestionar mensajeros.\n"
+            "- 'Asignar' y 'Desasignar' en las diferentes pestañas para gestionar a los repartidores.\n"
+            "- 'Reasignar' una incidencia para poder poner el envío en marcha de nuevo \n"
             "- Usa 'Ver Detalles' para ver información completa de un envío.\n"
-            "- En la pestaña Usuarios puedes buscar y cambiar roles.\n"
+            "- En la pestaña Usuarios puedes buscar y cambiar roles de un usuario. También podrás eliminarlo\n"
+            "- En la sección 'Repartidores', puedes observar el horario de los mismos \n"
+            "- En la sección 'Valoraciones', puedes revisar la puntuación media de cada repartidor\n"
         )
+        
+    def delete_user(self):
+        if not hasattr(self, "found_user") or not self.found_user:
+            messagebox.showwarning("Selecciona un usuario", "Busca y selecciona primero un usuario a borrar.")
+            return
+
+        uid = self.found_user.get("id")
+        if not uid:
+            messagebox.showerror("Error", "ID de usuario no válido.")
+            return
+
+        # Evitar que el admin se borre a sí mismo (opcional)
+        if self.controller.current_user and self.controller.current_user.get("id") == uid:
+            messagebox.showwarning("Operación no permitida", "No puedes borrar tu propia cuenta mientras estés logueado.")
+            return
+
+        ans = messagebox.askyesno("Confirmar borrado",
+                                f"¿Seguro que quieres borrar a {self.found_user.get('nombre')} {self.found_user.get('apellidos')}?\n"
+                                "Esto eliminará también TODOS sus paquetes relacionados.")
+        if not ans:
+            return
+
+        ok = self.controller.delete_user(uid)
+        if ok:
+            self.search_entry.delete(0, "end")
+            self.user_info_lbl.configure(text="Usuario eliminado.")
+            try:
+                self.role_frame.pack_forget()
+            except:
+                pass
+            try:
+                if self.btn_delete_user.winfo_ismapped():
+                    self.btn_delete_user.pack_forget()
+            except:
+                pass
+            try:
+                self.refresh_data()
+            except:
+                pass
+
 
     def get_options(self):
-        return [
-            ("Actualizar Datos", lambda: self.refresh_data()),
-            ("Generar Reporte Repartidores", lambda: self.controller.get_all_couriers_report()),
-        ]
+        return []
